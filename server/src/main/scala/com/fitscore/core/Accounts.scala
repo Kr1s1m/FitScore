@@ -33,7 +33,7 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
       .transact(transactor)
       .compile
       .toList
-  
+
   override def create(account: Account): F[UUID] =
     sql"""
       INSERT INTO accounts(
