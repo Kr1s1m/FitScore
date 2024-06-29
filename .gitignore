@@ -2,7 +2,15 @@
 .vscode
 
 .bsp
+dist
 target
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
+.history
+.cache
+.lib/
 
 .bloop
 .metals
@@ -10,3 +18,35 @@ target
 metals.sbt
 
 .DS_Store
+
+# virtual machine crash logs
+hs_err_pid*
+
+### Scala ###
+*.class
+*.log
+
+# IntelliJ
+out/
+
+### Build files
+app/build
+build
+
+### app ###
+app/.DS_Store
+app/.parcel-cache
+app/node_modules
+app/dist
+
+### staging/prod configs and deployments
+server/src/main/resources/prod/
+server/src/main/resources/staging/
+app/dist-prod
+app/dist-staging
+
+# Crashlytics plugin (for Android Studio and IntelliJ)
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties
