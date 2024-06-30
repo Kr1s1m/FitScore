@@ -27,14 +27,10 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
   override def create(post: Post): F[UUID] =
     sql"""
           INSERT INTO posts(
-            post_date_created,
-            post_date_updated,
             account_id,
             post_title,
             post_body
           ) VALUES (
-            ${post.dateCreated},
-            ${post.dateUpdated},
             ${post.accountId},
             ${post.title},
             ${post.body}
@@ -43,7 +39,7 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
       .update
       .withUniqueGeneratedKeys[UUID]("post_id")
       .transact(transactor)
-  
+
   override def getById(id: UUID): F[Option[PostDTO]] =
     sql"""
           SELECT
@@ -60,10 +56,10 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
     .option
     .transact(transactor)
     .map {
-      case x@Some(_) => x
+      case p@Some(_) => p
       case _ => println(s"[Internal Error] getById: Not found id in posts : $id"); None
     }
-  
+
   override def all: F[List[PostDTO]] =
     sql"""
         SELECT
@@ -80,23 +76,23 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
     .transact(transactor)
     .compile
     .toList
-  
+
   //override def allDtos = all.map(x=>x.map(y=>Post(y.dateCreated,y.dateUpdated,y.accountId,y.title,y.body)))
-  
+
   override def update(post: PostDTO): F[Int] =
     (post.title, post.body) match
-      case ("","") => 
+      case ("","") =>
         sql"""
-             SELECT post_id 
-             FROM posts 
+             SELECT post_id
+             FROM posts
              WHERE post_id=${post.id}
         """
         .update
         .run
         .transact(transactor)
-      case _ => 
+      case _ =>
         sql"""
-             UPDATE posts 
+             UPDATE posts
              SET post_title=${post.title}, post_body=${post.body},post_date_updated=${LocalDateTime.now}
              WHERE post_id = ${post.id}
         """
@@ -104,9 +100,9 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
         .run
         .transact(transactor)
 
-  override def delete(id: UUID): F[Int] = 
+  override def delete(id: UUID): F[Int] =
     sql"""
-          DELETE 
+          DELETE
           FROM posts
           WHERE post_id=$id
     """
@@ -126,7 +122,7 @@ object PostsLive {
 
 object PostsPlayground extends IOApp.Simple:
 
-  def makePostgres = 
+  def makePostgres =
     for
       ec          <- ExecutionContexts.fixedThreadPool[IO](32)
       transactor  <- HikariTransactor.newHikariTransactor[IO](

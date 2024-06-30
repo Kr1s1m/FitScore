@@ -1,16 +1,20 @@
 package com.fitscore
 
 import cats.effect.*
+import cats.implicits.toSemigroupKOps
 import com.comcast.ip4s.*
 import com.fitscore.core.*
 import com.fitscore.http.*
 import doobie.util.ExecutionContexts
 import doobie.hikari.HikariTransactor
+import org.http4s.*
+import org.http4s.implicits.*
 import org.http4s.ember.server.EmberServerBuilder
+import org.http4s.server.Router
 import org.http4s.server.middleware.CORS
 
 object Application extends IOApp.Simple:
-  def makePostgres = 
+  def makePostgres =
     for
       ec          <- ExecutionContexts.fixedThreadPool[IO](32)
       transactor  <- HikariTransactor.newHikariTransactor[IO](
@@ -22,19 +26,21 @@ object Application extends IOApp.Simple:
       )
     yield transactor
 
-  def makeServer = 
+  def makeServer =
     for
       postgres    <- makePostgres
       accounts    <- AccountsLive.resource[IO](postgres)
       posts       <- PostsLive.resource[IO](postgres)
       accountsApi <- AccountRoutes.resource[IO](accounts)
       postsApi    <- PostRoutes.resource[IO](posts)
+      api         = Router(
+        "/" -> (accountsApi.routes <+> postsApi.routes)
+      ).orNotFound
       server      <- EmberServerBuilder
         .default[IO]
         .withHost(host"0.0.0.0")
         .withPort(port"8080")
-        .withHttpApp(CORS(accountsApi.routes.orNotFound))
-        .withHttpApp(CORS(postsApi.routes.orNotFound))
+        .withHttpApp(CORS(api))
         .build
     yield server
 

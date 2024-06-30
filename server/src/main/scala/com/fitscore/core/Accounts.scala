@@ -1,23 +1,27 @@
 package com.fitscore.core
 
 import java.util.UUID
-
 import cats.effect.*
 import cats.syntax.all.*
 import doobie.implicits.*
 import doobie.postgres.implicits.*
 import doobie.util.transactor.Transactor
-import com.fitscore.domain.account.Account
-import java.{util => ju}
+import com.fitscore.domain.account.{Account, AccountDTO}
+
+import java.util as ju
 import doobie.util.ExecutionContexts
 import doobie.hikari.HikariTransactor
 
+import java.time.LocalDateTime
+
 trait Accounts[F[_]]: // "algebra"
   def create(account: Account): F[UUID]
-  def all: F[List[Account]]
+  def getById(id: UUID): F[Option[AccountDTO]]
+  def all: F[List[AccountDTO]]
+  //def update(post: AccountDTO): F[Int]
+  def delete(id: UUID): F[Int]
 
 class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Accounts[F]:
-  
   override def create(account: Account): F[UUID] =
     sql"""
       INSERT INTO accounts(
@@ -38,9 +42,31 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
       .withUniqueGeneratedKeys[UUID]("account_id")
       .transact(transactor)
 
-  override def all: F[List[Account]] =
+  override def getById(id: UUID): F[Option[AccountDTO]] =
+    sql"""
+          SELECT
+            account_id,
+            account_date_created,
+            account_email,
+            account_username,
+            account_age,
+            account_height,
+            account_weight
+          FROM accounts
+          WHERE account_id=$id
+    """
+    .query[AccountDTO]
+    .option
+    .transact(transactor)
+    .map {
+      case a@Some(_) => a
+      case _ => println(s"[Internal Error] getById: Not found id in accounts : $id"); None
+    }
+  override def all: F[List[AccountDTO]] =
     sql"""
         SELECT
+          account_id,
+          account_date_created,
           account_email,
           account_username,
           account_age,
@@ -48,11 +74,23 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
           account_weight
         FROM accounts
       """
-      .query[Account]
+      .query[AccountDTO]
       .stream
       .transact(transactor)
       .compile
       .toList
+
+  //override def update(post: AccountDTO): F[Int] = ???
+
+  override def delete(id: UUID): F[Int] =
+    sql"""
+          DELETE 
+          FROM accounts
+          WHERE account_id=$id
+    """
+    .update
+    .run
+    .transact(transactor)
 
 object AccountsLive:
   def make[F[_]: Concurrent](postgres: Transactor[F]): F[AccountsLive[F]] =
@@ -63,7 +101,7 @@ object AccountsLive:
 
 
 object AccountsPlayground extends IOApp.Simple:
-  def makePostgres = 
+  def makePostgres =
     for
       ec          <- ExecutionContexts.fixedThreadPool[IO](32)
       transactor  <- HikariTransactor.newHikariTransactor[IO](

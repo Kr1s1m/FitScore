@@ -4,7 +4,7 @@ import cats.*
 import cats.effect.*
 import cats.syntax.all.*
 import com.fitscore.core.*
-import com.fitscore.domain.post.Post
+import com.fitscore.domain.post.{Post, PostDTO}
 import io.circe.generic.auto.*
 import org.http4s.*
 import org.http4s.circe.CirceEntityCodec.*
@@ -15,31 +15,51 @@ import org.http4s.server.Router
 class PostRoutes[F[_]: Concurrent] private (posts: Posts[F]) extends Http4sDsl[F]:
   private val prefix = "/posts"
 
-  // post /posts/create { Post }
+  //POST /posts/create { Post }
   private val createPostRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case request @ POST -> Root / "create" =>
-      for 
+      for
         post      <- request.as[Post]
         id        <- posts.create(post)
         response  <- Created(id)
       yield response
   }
 
-  //get /posts/{id}
+  //GET /posts/{id}
   private val getByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case GET -> Root / UUIDVar(postId) => posts.getById(postId).flatMap{
-      case Some(x) => Ok(x)
+      case Some(post) => Ok(post)
       case None => NotFound(s"Not found post id : $postId")
     }
   }
 
-  // get /posts
-  private val getAllRoute: HttpRoutes[F] = HttpRoutes.of[F] { 
+  //GET /posts
+  private val getAllRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case GET -> Root => posts.all.flatMap(posts => Ok(posts))
   }
 
+  //PATCH /posts/update { Post }
+  private val updateByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
+    case request @ PATCH -> Root / "update" =>
+      for
+        post <- request.as[PostDTO]
+        response <- posts.update(post).flatMap {
+          case 0 => NotModified()
+          case i => Ok(s"$i entries modified from accounts")
+        }
+      yield response
+  }
+
+  //DELETE /posts/{id}
+  private val deleteByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
+    case DELETE -> Root / UUIDVar(postId) =>  posts.delete(postId).flatMap{
+        case 0 => NotFound(s"Not found post id : $postId")
+        case i => NoContent()
+      }
+  }
+
   val routes: HttpRoutes[F] = Router(
-    prefix -> (createPostRoute <+> getByIdRoute <+> getAllRoute)
+    prefix -> (createPostRoute <+> getByIdRoute <+> getAllRoute <+> updateByIdRoute <+> deleteByIdRoute)
   )
 
 object PostRoutes:
