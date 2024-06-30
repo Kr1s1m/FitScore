@@ -10,16 +10,15 @@ import tyrian.http.*
 import scala.scalajs.js
 import scala.scalajs.js.annotation.*
 
-enum Msg {
+enum Msg:
   case NoMsg
   case LoadAccounts(accounts: List[Account])
   case Error(e: String)
-}
 
 case class Model(accounts: List[Account] = List())
 
 @JSExportTopLevel("FitScoreApp")
-object App extends TyrianApp[Msg, Model] {
+object App extends TyrianApp[Msg, Model]:
 
   private def backendCall: Cmd[IO, Msg] =
     Http.send(
@@ -55,4 +54,3 @@ object App extends TyrianApp[Msg, Model] {
 
   override def subscriptions(model: Model): Sub[IO, Msg] =
     Sub.None
-}
