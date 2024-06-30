@@ -4,7 +4,7 @@ import cats.*
 import cats.effect.*
 import cats.syntax.all.*
 import com.fitscore.core.*
-import com.fitscore.domain.account.Account
+import com.fitscore.domain.account.*
 import io.circe.generic.auto.*
 import org.http4s.*
 import org.http4s.circe.CirceEntityCodec.*
@@ -38,6 +38,40 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
     case GET -> Root => accounts.all.flatMap(accounts => Ok(accounts))
   }
 
+  //PATCH /accounts/update/stats { AccountStats }
+  private val updateStatsByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
+    case request@PATCH -> Root / "update" / "stats" =>
+      for
+        accountStats <- request.as[AccountStatsUpdateRequest]
+        response <- accounts.updateStats(accountStats).flatMap {
+          case 0 => NotModified()
+          case i => Ok(s"$i entries modified from accounts")
+        }
+      yield response
+  }
+  //PATCH /accounts/update/username { AccountUsername }
+  private val updateUsernameByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
+    case request@PATCH -> Root / "update" / "username" =>
+      for
+        accountUsername <- request.as[AccountUsernameUpdateRequest]
+        response <- accounts.updateUsername(accountUsername).flatMap {
+          case 0 => NotModified()
+          case i => Ok(s"$i entries modified from accounts")
+        }
+      yield response
+  }
+  //PATCH /accounts/update/email { AccountEmail }
+  private val updateEmailByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
+    case request@PATCH -> Root / "update" / "email" =>
+      for
+        accountEmail <- request.as[AccountEmailUpdateRequest]
+        response <- accounts.updateEmail(accountEmail).flatMap {
+          case 0 => NotModified()
+          case i => Ok(s"$i entries modified from accounts")
+        }
+      yield response
+  }
+
   //DELETE /accounts/{id}
   private val deleteByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case DELETE -> Root / UUIDVar(accountId) => accounts.delete(accountId).flatMap {
@@ -47,7 +81,15 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
   }
 
   val routes: HttpRoutes[F] = Router(
-    prefix -> (createAccountRoute <+> getByIdRoute <+> getAllRoute <+> deleteByIdRoute)
+    prefix -> (
+        createAccountRoute <+> 
+        getByIdRoute <+> 
+        getAllRoute <+> 
+        updateStatsByIdRoute <+> 
+        updateUsernameByIdRoute <+> 
+        updateEmailByIdRoute <+> 
+        deleteByIdRoute
+      )
   )
 
 

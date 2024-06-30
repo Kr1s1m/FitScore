@@ -29,8 +29,23 @@ object account:
                         username: String,
                         age: Short,
                         height: Short,
-                        weight: Double         
+                        weight: Double
                        )
+  case class AccountStatsUpdateRequest(
+                                 id: UUID,
+                                 age: Short,
+                                 height: Short,
+                                 weight: Double
+                               )
+  case class AccountUsernameUpdateRequest(
+                                 id: UUID,
+                                 username: String
+                               )
+
+  case class AccountEmailUpdateRequest(
+                                  id: UUID,
+                                  email: String
+                                )
 
   object Account:
     val dummy = Account(

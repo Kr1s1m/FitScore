@@ -6,7 +6,7 @@ import cats.syntax.all.*
 import doobie.implicits.*
 import doobie.postgres.implicits.*
 import doobie.util.transactor.Transactor
-import com.fitscore.domain.account.{Account, AccountDTO}
+import com.fitscore.domain.account.*
 
 import java.util as ju
 import doobie.util.ExecutionContexts
@@ -18,7 +18,12 @@ trait Accounts[F[_]]: // "algebra"
   def create(account: Account): F[UUID]
   def getById(id: UUID): F[Option[AccountDTO]]
   def all: F[List[AccountDTO]]
-  //def update(post: AccountDTO): F[Int]
+  def updateStats(post: AccountStatsUpdateRequest): F[Int]
+
+  def updateUsername(post: AccountUsernameUpdateRequest): F[Int]
+
+  def updateEmail(post: AccountEmailUpdateRequest): F[Int]
+
   def delete(id: UUID): F[Int]
 
 class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Accounts[F]:
@@ -80,7 +85,42 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
       .compile
       .toList
 
-  //override def update(post: AccountDTO): F[Int] = ???
+  override def updateStats(account: AccountStatsUpdateRequest): F[Int] =
+        sql"""
+             UPDATE accounts
+             SET
+               account_age = ${account.age},
+               account_height = ${account.height},
+               account_weight = ${account.weight}
+             WHERE account_id = ${account.id}
+        """
+          .update
+          .run
+          .transact(transactor)
+
+  override def updateUsername(account: AccountUsernameUpdateRequest): F[Int] =
+    sql"""
+               UPDATE accounts
+               SET
+                 account_username = ${account.username}
+               WHERE account_id = ${account.id}
+          """
+      .update
+      .run
+      .transact(transactor)
+
+
+  override def updateEmail(account: AccountEmailUpdateRequest): F[Int] =
+    sql"""
+               UPDATE accounts
+               SET
+                 account_email = ${account.email}
+               WHERE account_id = ${account.id}
+          """
+      .update
+      .run
+      .transact(transactor)
+
 
   override def delete(id: UUID): F[Int] =
     sql"""
@@ -122,3 +162,6 @@ object AccountsPlayground extends IOApp.Simple:
     yield ()
 
   override def run: IO[Unit] = makePostgres.use(program)
+
+
+
