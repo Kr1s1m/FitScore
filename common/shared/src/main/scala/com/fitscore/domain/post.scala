@@ -18,8 +18,8 @@ import java.util.UUID
 
 object post:
   case class Post( //WRITING MOSTLY
-                   //dateCreated: LocalDateTime = LocalDateTime.now,
-                   //dateUpdated: LocalDateTime = LocalDateTime.now,
+//                   dateCreated: Option[LocalDateTime] = LocalDateTime.now,
+//                   dateUpdated: LocalDateTime = LocalDateTime.now,
                    accountId: UUID = UUID.randomUUID,
                    title: String,
                    body: String
@@ -33,11 +33,16 @@ object post:
                       title: String = "",
                       body: String = ""
                     )
+  case class PostUpdateRequest(
+                              id: UUID,
+                              title: String,
+                              body: String
+                              )
 
   object Post:
 
-    val uuidvalid = UUID.fromString("197a20e4-e402-4853-aaf8-e657022a8c3d")
-    val postid = UUID.fromString("98da96f5-cfaf-4a03-aada-1f647dbf7e19")
+    val uuidvalid = UUID.fromString("4a6df968-50c4-4eb2-875f-87f22d734a06")
+    val postid = UUID.fromString("4a6df968-50c4-4eb2-875f-87f22d734a06")
 
     val insertDummy =
       Post(

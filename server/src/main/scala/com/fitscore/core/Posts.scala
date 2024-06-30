@@ -20,7 +20,7 @@ trait Posts[F[_]]: // "algebra"
   def getById(id: UUID): F[Option[PostDTO]]
   def all: F[List[PostDTO]]
   //def allDtos: F[List[Post]]
-  def update(post: PostDTO): F[Int]
+  def update(post: PostUpdateRequest): F[Int]
   def delete(id: UUID): F[Int]
 
 class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Posts[F]:
@@ -79,7 +79,7 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
 
   //override def allDtos = all.map(x=>x.map(y=>Post(y.dateCreated,y.dateUpdated,y.accountId,y.title,y.body)))
 
-  override def update(post: PostDTO): F[Int] =
+  override def update(post: PostUpdateRequest): F[Int] =
     (post.title, post.body) match
       case ("","") =>
         sql"""
@@ -138,7 +138,7 @@ object PostsPlayground extends IOApp.Simple:
     for
       posts <- PostsLive.make[IO](postgres)
       _     <- posts.create(fromDTOtoPost(dummyDTO))
-      _     <- posts.update(dummyDTO)
+      //_     <- posts.update
       v     <- posts.create(fromDTOtoPost(dummyDTO))
       s     <- posts.create(fromDTOtoPost(dummyDTO))
       az    <- posts.getById(UUID.randomUUID())

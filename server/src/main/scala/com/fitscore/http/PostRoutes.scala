@@ -4,7 +4,7 @@ import cats.*
 import cats.effect.*
 import cats.syntax.all.*
 import com.fitscore.core.*
-import com.fitscore.domain.post.{Post, PostDTO}
+import com.fitscore.domain.post.{Post, PostDTO, PostUpdateRequest}
 import io.circe.generic.auto.*
 import org.http4s.*
 import org.http4s.circe.CirceEntityCodec.*
@@ -42,7 +42,7 @@ class PostRoutes[F[_]: Concurrent] private (posts: Posts[F]) extends Http4sDsl[F
   private val updateByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case request @ PATCH -> Root / "update" =>
       for
-        post <- request.as[PostDTO]
+        post <- request.as[PostUpdateRequest]
         response <- posts.update(post).flatMap {
           case 0 => NotModified()
           case i => Ok(s"$i entries modified from accounts")

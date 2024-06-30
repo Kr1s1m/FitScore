@@ -13,7 +13,7 @@ create table posts(
     post_id uuid primary key NOT NULL DEFAULT gen_random_uuid (),
     account_id uuid  NOT NULL REFERENCES accounts(account_id),
     post_date_created timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    post_date_updated timestamp without time zone,
+    post_date_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     post_title character varying(100),
     post_body text
 );
