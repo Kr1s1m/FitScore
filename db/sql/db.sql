@@ -21,8 +21,8 @@ create table posts(
 create table replies(
     reply_id uuid primary key NOT NULL DEFAULT gen_random_uuid (),
     account_id uuid NOT NULL REFERENCES accounts(account_id),
-    post_id uuid NOT NULL REFERENCES posts(post_id),
-    reply_parent_id uuid REFERENCES replies(reply_id),
+    post_id uuid NOT NULL REFERENCES posts(post_id) ON DELETE CASCADE,
+    reply_parent_id uuid REFERENCES replies(reply_id) ON DELETE CASCADE,
     reply_date_created timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     reply_date_updated timestamp without time zone,
     reply_body text
@@ -38,14 +38,14 @@ create table verification_tokens(
 create type vote_type as enum ('up', 'down');
 
 create table post_votes(
-    post_vote_id uuid uuid primary key NOT NULL DEFAULT gen_random_uuid (),
+    post_vote_id uuid primary key NOT NULL DEFAULT gen_random_uuid (),
     account_id uuid NOT NULL REFERENCES accounts(account_id),
     post_id uuid NOT NULL REFERENCES posts(post_id),
     post_vote_vote_type vote_type
 );
 
 create table reply_votes(
-    reply_vote_id uuid uuid primary key NOT NULL DEFAULT gen_random_uuid (),
+    reply_vote_id uuid primary key NOT NULL DEFAULT gen_random_uuid (),
     account_id uuid NOT NULL REFERENCES accounts(account_id),
     reply_id uuid NOT NULL REFERENCES posts(post_id),
     reply_vote_vote_type vote_type
@@ -54,24 +54,28 @@ create table reply_votes(
 create type access_type as enum ('user', 'admin');
 
 create table roles(
-    role_id smallint NOT NULL DEFAULT 1,
+    role_id uuid primary key NOT NULL DEFAULT gen_random_uuid (),
     role_access_type access_type NOT NULL DEFAULT 'user'::access_type
 );
 
+create table accounts_roles(
+    PRIMARY KEY(account_id, role_id),
+    account_id uuid REFERENCES accounts(account_id),
+    role_id uuid REFERENCES roles(role_id)
+);
+-- Inserts:
+
+
 insert into roles(
-    role_id,
 	role_access_type
 ) values (
-    0,
-	'user'::access_type,
+	'user'::access_type
 );
 
 insert into roles(
-    role_id,
 	role_access_type
 ) values (
-    1,
-	'admin'::access_type,
+	'admin'::access_type
 );
 
 insert into accounts(
@@ -101,3 +105,10 @@ insert into accounts(
 	173,
 	54.5
 );
+
+INSERT INTO accounts_roles(account_id, role_id)
+VALUES
+((SELECT account_id FROM accounts WHERE account_username = 'Dero'), (SELECT role_id FROM roles WHERE role_access_type = 'admin')),
+((SELECT account_id FROM accounts WHERE account_username = 'Dero'), (SELECT role_id FROM roles WHERE role_access_type = 'user')),
+((SELECT account_id FROM accounts WHERE account_username = 'Kr1s1m'), (SELECT role_id FROM roles WHERE role_access_type = 'user')),
+((SELECT account_id FROM accounts WHERE account_username = 'Kr1s1m'), (SELECT role_id FROM roles WHERE role_access_type = 'admin'));

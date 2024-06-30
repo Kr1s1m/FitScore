@@ -24,12 +24,14 @@ object Application extends IOApp.Simple {
   def makeServer = for {
     postgres <- makePostgres
     accounts <- AccountsLive.resource[IO](postgres)
+    posts <- PostsLive.resource[IO](postgres)
     accountsApi   <- AccountRoutes.resource[IO](accounts)
+    postsApi <- PostRoutes.resource[IO](posts)
     server <- EmberServerBuilder
       .default[IO]
       .withHost(host"0.0.0.0")
       .withPort(port"8080")
-      .withHttpApp(CORS(accountsApi.routes.orNotFound))
+      .withHttpApp(CORS(accountsApi.routes.orNotFound)).withHttpApp(CORS(postsApi.routes.orNotFound))
       .build
   } yield server
 
