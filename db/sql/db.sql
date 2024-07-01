@@ -3,7 +3,8 @@ create table accounts(
     account_id uuid primary key NOT NULL DEFAULT gen_random_uuid (),
     account_date_created timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     account_email character varying(255),
-    account_username character varying(255),
+    account_username character varying(25),
+    account_password character varying(255),
     account_age smallint,
     account_height smallint,
     account_weight numeric(4,1)
@@ -51,11 +52,9 @@ create table reply_votes(
     reply_vote_vote_type vote_type
 );
 
-create type access_type as enum ('user', 'admin');
-
 create table roles(
     role_id uuid primary key NOT NULL DEFAULT gen_random_uuid (),
-    role_access_type access_type NOT NULL DEFAULT 'user'::access_type
+    role_access_type character varying(255) NOT NULL DEFAULT 'user'
 );
 
 create table accounts_roles(
@@ -63,19 +62,19 @@ create table accounts_roles(
     account_id uuid REFERENCES accounts(account_id),
     role_id uuid REFERENCES roles(role_id)
 );
+
+
 -- Inserts:
-
-
 insert into roles(
 	role_access_type
 ) values (
-	'user'::access_type
+	'user'
 );
 
 insert into roles(
 	role_access_type
 ) values (
-	'admin'::access_type
+	'admin'
 );
 
 insert into accounts(

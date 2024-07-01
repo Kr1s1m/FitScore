@@ -162,6 +162,3 @@ object AccountsPlayground extends IOApp.Simple:
     yield ()
 
   override def run: IO[Unit] = makePostgres.use(program)
-
-
-
