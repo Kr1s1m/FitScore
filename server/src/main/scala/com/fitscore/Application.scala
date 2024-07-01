@@ -31,10 +31,16 @@ object Application extends IOApp.Simple:
       postgres    <- makePostgres
       accounts    <- AccountsLive.resource[IO](postgres)
       posts       <- PostsLive.resource[IO](postgres)
+      replies     <- RepliesLive.resource[IO](postgres)
       accountsApi <- AccountRoutes.resource[IO](accounts)
       postsApi    <- PostRoutes.resource[IO](posts)
+      repliesApi  <- ReplyRoutes.resource[IO](replies)
       api         = Router(
-        "/" -> (accountsApi.routes <+> postsApi.routes)
+        "/" -> (
+          accountsApi.routes <+>
+          postsApi.routes <+>
+          repliesApi.routes
+        )
       ).orNotFound
       server      <- EmberServerBuilder
         .default[IO]

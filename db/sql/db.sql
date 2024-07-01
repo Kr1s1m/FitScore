@@ -24,7 +24,7 @@ create table replies(
     post_id uuid NOT NULL REFERENCES posts(post_id) ON DELETE CASCADE,
     reply_parent_id uuid REFERENCES replies(reply_id) ON DELETE CASCADE,
     reply_date_created timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    reply_date_updated timestamp without time zone,
+    reply_date_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     reply_body text
 );
 

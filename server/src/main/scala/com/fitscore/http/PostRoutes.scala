@@ -12,6 +12,11 @@ import org.http4s.dsl.Http4sDsl
 import org.http4s.implicits.*
 import org.http4s.server.Router
 
+import cats.data.Validated
+import cats.data.Validated.*
+import com.fitscore.errors.PostUpdateRequestError
+import com.fitscore.errors.PostUpdateRequestError.*
+
 class PostRoutes[F[_]: Concurrent] private (posts: Posts[F]) extends Http4sDsl[F]:
   private val prefix = "/posts"
 
@@ -29,7 +34,7 @@ class PostRoutes[F[_]: Concurrent] private (posts: Posts[F]) extends Http4sDsl[F
   private val getByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case GET -> Root / UUIDVar(postId) => posts.getById(postId).flatMap{
       case Some(post) => Ok(post)
-      case None => NotFound(s"Not found post id : $postId")
+      case None => NotFound(s"Fetch failed: Not found post id $postId")
     }
   }
 
@@ -44,8 +49,12 @@ class PostRoutes[F[_]: Concurrent] private (posts: Posts[F]) extends Http4sDsl[F
       for
         post <- request.as[PostUpdateRequest]
         response <- posts.update(post).flatMap {
-          case 0 => NotModified()
-          case i => Ok(s"$i entries modified from accounts")
+          case Invalid(EmptyPostTitle) => BadRequest("Update failed: Bad request - post title must not be empty")
+          case Invalid(EmptyPostBody) => BadRequest("Update failed: Bad request - post body must not be empty")
+          case Invalid(PostCreatedTimeElapsed) =>
+            BadRequest("Update failed: Bad request - cannot change title (15 minutes from creation elapsed)")
+          case Invalid(PostResourceNotFound(_))  => NotFound(s"Update failed: Not found post id ${post.id}")
+          case Valid(i)  => Ok(s"$i entries modified from posts")
         }
       yield response
   }
@@ -53,13 +62,19 @@ class PostRoutes[F[_]: Concurrent] private (posts: Posts[F]) extends Http4sDsl[F
   //DELETE /posts/{id}
   private val deleteByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case DELETE -> Root / UUIDVar(postId) =>  posts.delete(postId).flatMap{
-        case 0 => NotFound(s"Not found post id : $postId")
+        case 0 => NotFound(s"Delete failed: Not found post id $postId")
         case i => NoContent()
       }
   }
 
   val routes: HttpRoutes[F] = Router(
-    prefix -> (createPostRoute <+> getByIdRoute <+> getAllRoute <+> updateByIdRoute <+> deleteByIdRoute)
+    prefix -> (
+      createPostRoute <+> 
+      getByIdRoute <+>
+      getAllRoute <+>
+      updateByIdRoute <+>
+      deleteByIdRoute
+    )
   )
 
 object PostRoutes:

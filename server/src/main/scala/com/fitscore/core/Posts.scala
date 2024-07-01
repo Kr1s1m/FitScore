@@ -8,19 +8,23 @@ import doobie.postgres.implicits.*
 import doobie.util.transactor.Transactor
 import com.fitscore.domain.post.*
 import com.fitscore.domain.post.Post.{dummyDTO, fromDTOtoPost, fromPostToDTO}
+import cats.data.Validated
+import cats.data.Validated.*
+import com.fitscore.errors.PostUpdateRequestError
+import com.fitscore.errors.PostUpdateRequestError.*
 
 import java.util as ju
 import doobie.util.ExecutionContexts
 import doobie.hikari.HikariTransactor
 
-import java.time.LocalDateTime
+import java.time.{Duration, LocalDateTime}
 
 trait Posts[F[_]]: // "algebra"
   def create(post: Post): F[UUID]
   def getById(id: UUID): F[Option[PostDTO]]
   def all: F[List[PostDTO]]
   //def allDtos: F[List[Post]]
-  def update(post: PostUpdateRequest): F[Int]
+  def update(post: PostUpdateRequest): F[Validated[PostUpdateRequestError, Int]]
   def delete(id: UUID): F[Int]
 
 class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Posts[F]:
@@ -79,26 +83,31 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
 
   //override def allDtos = all.map(x=>x.map(y=>Post(y.dateCreated,y.dateUpdated,y.accountId,y.title,y.body)))
 
-  override def update(post: PostUpdateRequest): F[Int] =
-    (post.title, post.body) match
-      case ("","") =>
-        sql"""
-             SELECT post_id
-             FROM posts
-             WHERE post_id=${post.id}
+  override def update(post: PostUpdateRequest): F[Validated[PostUpdateRequestError, Int]] =
+    val runUpdateQuery =
+      sql"""
+            UPDATE posts
+            SET
+              post_title=${post.newTitle},
+              post_body=${post.newBody},
+              post_date_updated=${LocalDateTime.now}
+            WHERE post_id = ${post.id}
         """
         .update
         .run
         .transact(transactor)
-      case _ =>
-        sql"""
-             UPDATE posts
-             SET post_title=${post.title}, post_body=${post.body},post_date_updated=${LocalDateTime.now}
-             WHERE post_id = ${post.id}
-        """
-        .update
-        .run
-        .transact(transactor)
+        .map{
+          case 0 => Invalid(PostResourceNotFound(0))
+          case i => Valid(i)
+        }
+
+    (post.oldTitle, post.newTitle, post.newBody) match
+      case (_, "", _) => Invalid(EmptyPostTitle).pure[F]
+      case (_, _, "") => Invalid(EmptyPostBody).pure[F]
+      case (t1, t2, _) if t1 != t2 =>
+        val createdElapsedMinutes = Duration.between(post.dateCreated, LocalDateTime.now).toMinutes
+        if createdElapsedMinutes >= 15 then Invalid(PostCreatedTimeElapsed).pure[F] else runUpdateQuery
+      case _ => runUpdateQuery
 
   override def delete(id: UUID): F[Int] =
     sql"""

@@ -29,7 +29,7 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
   private val getByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case GET -> Root / UUIDVar(accountId) => accounts.getById(accountId).flatMap {
       case Some(account) => Ok(account)
-      case None => NotFound(s"Not found post id : $accountId")
+      case None => NotFound(s"Fetch failed: Not found account id $accountId")
     }
   }
 
@@ -44,7 +44,7 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
       for
         accountStats <- request.as[AccountStatsUpdateRequest]
         response <- accounts.updateStats(accountStats).flatMap {
-          case 0 => NotModified()
+          case 0 => NotFound(s"Stats update failed: Not found account id ${accountStats.id}")
           case i => Ok(s"$i entries modified from accounts")
         }
       yield response
@@ -55,7 +55,7 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
       for
         accountUsername <- request.as[AccountUsernameUpdateRequest]
         response <- accounts.updateUsername(accountUsername).flatMap {
-          case 0 => NotModified()
+          case 0 => NotFound(s"Username update failed: Not found account id ${accountUsername.id}")
           case i => Ok(s"$i entries modified from accounts")
         }
       yield response
@@ -66,7 +66,7 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
       for
         accountEmail <- request.as[AccountEmailUpdateRequest]
         response <- accounts.updateEmail(accountEmail).flatMap {
-          case 0 => NotModified()
+          case 0 => NotFound(s"Username update failed: Not found account id ${accountEmail.id}")
           case i => Ok(s"$i entries modified from accounts")
         }
       yield response
@@ -75,7 +75,7 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
   //DELETE /accounts/{id}
   private val deleteByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case DELETE -> Root / UUIDVar(accountId) => accounts.delete(accountId).flatMap {
-      case 0 => NotFound(s"Not found post id : $accountId")
+      case 0 => NotFound(s"Delete failed: Not found account id $accountId")
       case i => NoContent()
     }
   }

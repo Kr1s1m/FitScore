@@ -35,13 +35,15 @@ object post:
                     )
   case class PostUpdateRequest(
                               id: UUID,
-                              title: String,
-                              body: String
+                              dateCreated: LocalDateTime,
+                              oldTitle: String,
+                              newTitle: String,
+                              newBody: String
                               )
 
   object Post:
 
-    val uuidvalid = UUID.fromString("4a6df968-50c4-4eb2-875f-87f22d734a06")
+    val uuidvalid = UUID.fromString("d9ba2946-a4a3-4acf-9685-aed117c1b213")
     val postid = UUID.fromString("4a6df968-50c4-4eb2-875f-87f22d734a06")
 
     val insertDummy =
