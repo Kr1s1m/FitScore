@@ -13,10 +13,17 @@ import scala.scalajs.js
 import scala.scalajs.js.annotation.*
 import io.circe.syntax.*
 
+enum DynPage:
+  case Login
+  case Register
+  case Home
 enum Msg:
   case NoMsg
   case ShowAll
   case HideAll
+  case Close
+  case Open
+  case ToDo
   case LoadAccounts(accounts: List[Account])
   case RegisterAccount
   case UsernameInput(username:String)
@@ -24,6 +31,7 @@ enum Msg:
   case AgeInput(username:String)
   case HeightInput(username:String)
   case WeightInput(username:String)
+  case LogIn
 
   case HoldInformation(s:String)
   case Error(e: String)
@@ -34,7 +42,8 @@ case class Model(
                   username:String="",
                   age:String="",
                   height:String="",
-                  weight:String=""
+                  weight:String="",
+                  pages:List[DynPage]=List(DynPage.Home),
                 )
 
 @JSExportTopLevel("FitScoreApp")
@@ -59,44 +68,81 @@ object App extends TyrianApp[Msg, Model]:
   override def init(flags: Map[String, String]): (Model, Cmd[IO, Msg]) =
     (Model(), Cmd.None)
 
-  override def view(model: Model): Html[Msg] =
-    div(id := "login-overlay")(
-      div(id := "login-popup")(
-        div(id := "login-popup-content",style :=
+  private def registerHtml(model: Model): Html[Msg] =
+    div()(model.pages.map{case DynPage.Register => div()(
+    div(id := "register-overlay")(
+      div(id := "register-popup")(
+        div(id := "register-popup-content", style :=
           "position: fixed; " +
             "top: 0; left: 0; width: 100%; height: 100%; " +
             "background-color: rgba(0, 0, 0, 0.2); display: " +
             "flex; justify-content: center; " +
             "align-items: center;")(
-          div(id := "background",style := "width: 500px; height: 700px; background-color: rgba(0, 0, 0.2, 0.1); border: 1px solid black;"+"display: " +
-    "flex; justify-content: center; " +
-      "align-items: center;"
-          )(div()(
-            input(`type` := "text", placeholder := "Email",onInput(email =>Msg.EmailInput(email))),br,
-            input(`type` := "text", placeholder := "Username",onInput(username =>Msg.UsernameInput(username))),br,
-            input(`type` := "text", placeholder := "Age",onInput(age =>Msg.AgeInput(age))),br,
-            input(`type` := "text", placeholder := "Height",onInput(height =>Msg.HeightInput(height))),br,
-            input(`type` := "text", placeholder := "Weight",onInput(weight =>Msg.WeightInput(weight))),br,
-            button(onClick(Msg.RegisterAccount))("Register"),br,
-            button(onClick(Msg.ShowAll))("Show all"),br,
-            button(onClick(Msg.HideAll))("Hide all")))
-        ),
+          div(id := "background", style := "width: 500px; height: 700px; background-color: rgba(0, 0, 0.2, 0.1); border: 1px solid black;" + "display: " +
+            "flex; justify-content: center; " +
+            "align-items: center;"
+          )(div(style:="fixed;")(
+            input(`type` := "text", placeholder := "Email", onInput(email => Msg.EmailInput(email))), br, //15
+            input(maxLength := maxUserLength,`type` := "text", placeholder := "Username", onInput(username => Msg.UsernameInput(username))),text(s"Limit:${model.username.length.toString}/$maxUserLength"), br,
+            input(`type` := "text", placeholder := "Password", onInput(password => Msg.ToDo)), br,
+            input(`type` := "text", placeholder := "ConfirmPassword", onInput(username => Msg.ToDo)), br,
+            input(`type` := "text", placeholder := "Age", onInput(age => Msg.AgeInput(age))), br,
+            input(`type` := "text", placeholder := "Height", onInput(height => Msg.HeightInput(height))), br,
+            input(`type` := "text", placeholder := "Weight", onInput(weight => Msg.WeightInput(weight))), br,
+            button(onClick(Msg.RegisterAccount))("Register"), button(onClick(Msg.LogIn))("Login"), br,
+            button(onClick(Msg.Close))("Close")))))))
+    case _ => div()()})
+  val maxUserLength = 15
+  private def loginHtml(model: Model): Html[Msg] =
+    div()(model.pages.map { case DynPage.Login => div()(
+      div(id := "login-overlay")(
+        div(id := "login-popup")(
+          div(id := "login-popup-content", style :=
+            "position: fixed; " +
+              "top: 0; left: 0; width: 100%; height: 100%; " +
+              "background-color: rgba(0, 0, 0, 0.2); display: " +
+              "flex; justify-content: center; " +
+              "align-items: center;")(
+            div(id := "background", style := "width: 500px; height: 700px; background-color: rgba(0, 0, 0.2, 0.1); border: 1px solid black;" + "display: " +
+              "flex; justify-content: center; " +
+              "align-items: center;"
+            )(div()(
+              input(`type` := "text", placeholder := "Email", onInput(email => Msg.EmailInput(email))), br,
+              input(`type` := "text", placeholder := "Password", onInput(password => Msg.ToDo)), br,
+              button(onClick(Msg.LogIn))("Login"),button(onClick(Msg.Open))("Register"),br,
+              button(onClick(Msg.Close))("Close")))))))
+    case _ => div()()
+    })
+  override def view(model: Model): Html[Msg] =
+    div(id := "Home page")(
+        button(onClick(Msg.ShowAll))("Show all"), br,
+        button(onClick(Msg.HideAll))("Hide all"), br,
+        registerHtml(model),
+        loginHtml(model),
+        div()(button(onClick(Msg.Open))("Register")),
+        div()(button(onClick(Msg.LogIn))("Login")),
         div(`class` := "contents ")(
           model.accounts.map { account =>
             div(account.toString)
           }
-        ),
-      )
+    )
     )
   def sdecode:Decoder[Msg] =
    Decoder[Msg](r => Msg.HoldInformation("sauz1"),e => Msg.HoldInformation("saauz"))
 
   override def update(model: Model): Msg => (Model, Cmd[IO, Msg]) = {
+    case Msg.ToDo => (model, Cmd.None)
     case Msg.NoMsg => (model, Cmd.None)
+
     case Msg.ShowAll => (model,backendCall)
     case Msg.HideAll => (Model(),Cmd.None)
 
-    case Msg.UsernameInput(x)  => (model.copy(username=x),Cmd.None)
+    case Msg.Close => (model.copy(pages=List(DynPage.Home)),Cmd.None)
+    case Msg.Open => (model.copy(pages=List(DynPage.Register)),Cmd.None)
+
+    case Msg.LogIn => (model.copy(pages=List(DynPage.Login)),Cmd.None)
+
+    case Msg.UsernameInput(x)  => if model.username.length < maxUserLength then (model.copy(username=x),Cmd.None) else (model.copy(username=model.username.tail),Cmd.None)
     case Msg.AgeInput(x)  => (model.copy(age=x),Cmd.None)
     case Msg.EmailInput(x)  => (model.copy(email=x),Cmd.None)
     case Msg.HeightInput(x)  => (model.copy(height=x),Cmd.None)
