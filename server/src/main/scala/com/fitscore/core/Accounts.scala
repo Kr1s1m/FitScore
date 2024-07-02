@@ -42,13 +42,13 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
       INSERT INTO accounts(
         account_email,
         account_username,
-        account_age,
+        account_birth_date,
         account_height,
         account_weight
       ) VALUES (
         ${account.email},
         ${account.username},
-        ${account.age},
+        ${account.birthDate},
         ${account.height},
         ${account.weight}
       )

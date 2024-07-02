@@ -41,7 +41,8 @@ lazy val app = (project in file("app"))
       "org.planet42"    %%% "laika-core"    % laikaVersion,
       "io.circe"        %%% "circe-core"    % circeVersion,
       "io.circe"        %%% "circe-parser"  % circeVersion,
-      "io.circe"        %%% "circe-generic" % circeVersion
+      "io.circe"        %%% "circe-generic" % circeVersion,
+
     ),
     scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
     semanticdbEnabled := true,

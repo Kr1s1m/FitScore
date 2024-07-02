@@ -35,7 +35,7 @@ object account:
                       email: String,
                       username: String,
                       passwordHash:String,
-                      age: Short,
+                      birthDate: String,
                       height: Short,
                       weight: Double
                     )
@@ -48,6 +48,15 @@ object account:
                         age: Short,
                         height: Short,
                         weight: Double
+                       )
+
+  case class AccountPrint(
+                         dateCreated: LocalDateTime,
+                         email: String,
+                         username: String,
+                         age: Short,
+                         height: Short,
+                         weight: Double
                        )
   case class AccountStatsUpdateRequest(
                                  id: UUID,
@@ -70,9 +79,10 @@ object account:
       "dummy@fitscore.com",
       "dummy",
       "dummy",
+      "dummy",
       1,
       2,
-      3.3
     )
+    val uuidDefault: UUID = UUID.randomUUID()
   
 
