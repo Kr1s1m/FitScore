@@ -121,3 +121,39 @@ body {
   border-radius: 20px;
   z-index: -1;
 }
+
+.birthdate-container {
+  display: flex;
+  justify-content: flex-start;
+  width: 200px;
+  margin: 10px auto;
+  margin-left: 20px;
+}
+
+.birthdate-input {
+  width: 20px;
+  margin-right: 1000px;
+  padding: 10px;
+  margin: -5px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 14px;
+
+}
+.birthdate-input:first-child {
+  margin-left: 10; /* Remove margin on the first input box */
+}
+
+.red {
+  border: 2px solid red;
+  border-radius: 50px;
+  background: red;
+  height: 40px;
+}
+.green {
+  border: 2px solid green;
+  border-radius: 50px;
+  background: green;
+  height: 40px;
+}
