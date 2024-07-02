@@ -38,11 +38,7 @@ object account:
   case class Account(
                       email: String,
                       username: String,
-<<<<<<< HEAD
                       passwordHash: String,
-=======
-                      passwordHash:String,
->>>>>>> a87108d6a97073ae5aa2ebff3dbfa0dab511c8de
                       birthDate: String,
                       height: Short,
                       weight: Double
@@ -88,9 +84,7 @@ object account:
       "dummy",
       "dummy",
       "2000-02-02",
-      1,
-      2
+      2,
+      3.3
     )
     val uuidDefault: UUID = UUID.randomUUID()
-  
-
