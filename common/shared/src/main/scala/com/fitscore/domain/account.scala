@@ -16,26 +16,30 @@ import java.util.UUID
 object account:
 
   case class RegistrationRequest(
+                                  //credentials
                                   email: String,
                                   username: String,
                                   //password
-                                  password:String,
-                                  passwordConfirmation:String,
+                                  password: String,
+                                  passwordConfirmation: String,
                                   //date of birth
-                                  brithDay: String,
-                                  brithMouth: String,
-                                  brithYear: String,
-
+                                  birthDay: String,
+                                  birthMonth: String,
+                                  birthYear: String,
+                                  //stats
                                   height: String,
                                   weight: String
-
-
+                                  //...rest with update queries? shorter registration.
                                 )
+  case class LoginRequest(
+                           email: String,
+                           password: String
+                         )
   case class Account(
                       email: String,
                       username: String,
-                      passwordHash:String,
-                      age: Short,
+                      passwordHash: String,
+                      birthDate: String,
                       height: Short,
                       weight: Double
                     )
@@ -70,7 +74,7 @@ object account:
       "dummy@fitscore.com",
       "dummy",
       "dummy",
-      1,
+      "2000-02-02",
       2,
       3.3
     )

@@ -12,8 +12,28 @@ import org.http4s.dsl.Http4sDsl
 import org.http4s.implicits.*
 import org.http4s.server.Router
 
+import cats.data.{Validated, NonEmptyChain}
+import cats.data.Validated.*
+import com.fitscore.errors.RegistrationRequestError
+import com.fitscore.errors.RegistrationRequestError.*
+import com.fitscore.utils.Date
+import com.fitscore.validation.AccountValidator
+
 class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Http4sDsl[F]:
   private val prefix = "/accounts"
+  
+  //TODO: maybe move this to a new routes file/class related to new service class Authentication?
+  //POST /accounts/register { registrationRequest }
+  private val registerAccountRoute: HttpRoutes[F] = HttpRoutes.of[F] {
+    case request @ POST -> Root / "register" =>
+      request.as[RegistrationRequest].flatMap( regReq =>
+        AccountValidator.register(regReq).fold(
+          //TODO: errors should be chained errors from the validation and turned into strings with some functionality showErrors?
+          errors => BadRequest(s"${showErrors(errors)}"),
+          account => Created(accounts.create(account)) //TODO: use additional queries with account. about email and username
+        )
+      )
+  }
 
   //POST /accounts/create { Account }
   private val createAccountRoute: HttpRoutes[F] = HttpRoutes.of[F] {

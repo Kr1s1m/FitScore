@@ -6,7 +6,7 @@ create table accounts(
     account_username character varying(25),
     account_password character varying(255),
     account_age smallint,
-   -- account_birthday DATE,
+   -- account_birth_date DATE,
     account_height smallint,
     account_weight numeric(4,1)
 );

@@ -21,9 +21,14 @@ object Date:
       Date(year, month, day)
     }.toOption
 
-  def toIsoString(year: Int, month: Int, day: Int): String = s"${year}-${month}-${day}"
+  def toIsoString(year: Int, month: Int, day: Int): String =
+    def format(x: Int): String = if x < 10 then s"0$x" else s"$x"
+    s"${format(year)}-${format(month)}-${format(day)}"
   def toIsoString(date: Date): String = toIsoString(date.year, date.month, date.day)
-
-  val now = LocalDateTime.now()
-  val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-  val current = now.format(formatter).split('-').map(_.toInt)
+  
+  val current =
+    val now = LocalDateTime.now()
+    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    val list = now.format(formatter).split('-').map(_.toInt)
+    Date(list.head, list.tail.head, list.tail.tail.head)
+  

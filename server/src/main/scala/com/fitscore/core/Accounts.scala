@@ -1,5 +1,8 @@
 package com.fitscore.core
 
+
+import cats.Semigroup
+
 import java.util.UUID
 import cats.effect.*
 import cats.syntax.all.*
@@ -13,42 +16,41 @@ import doobie.util.ExecutionContexts
 import doobie.hikari.HikariTransactor
 
 import java.time.LocalDateTime
-import cats.data.Validated
+//import com.fitscore.validation.Validated
+import cats.data.{Validated, NonEmptyChain}
 import cats.data.Validated.*
 import com.fitscore.errors.RegistrationRequestError
 import com.fitscore.errors.RegistrationRequestError.*
+import com.fitscore.utils.Date
+import com.fitscore.validation.AccountValidator
 
 
 trait Accounts[F[_]]: // "algebra"
-  def register(registrationRequest: RegistrationRequest) : F[Validated[RegistrationRequestError,Account]]
   def create(account: Account): F[UUID]
   def getById(id: UUID): F[Option[AccountDTO]]
   def all: F[List[AccountDTO]]
-  def updateStats(post: AccountStatsUpdateRequest): F[Int]
-
-  def updateUsername(post: AccountUsernameUpdateRequest): F[Int]
-
-  def updateEmail(post: AccountEmailUpdateRequest): F[Int]
-
+  def updateStats(updateRequest: AccountStatsUpdateRequest): F[Int]
+  def updateUsername(updateRequest: AccountUsernameUpdateRequest): F[Int]
+  def updateEmail(updateRequest: AccountEmailUpdateRequest): F[Int]
   def delete(id: UUID): F[Int]
 
 
 class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Accounts[F]:
-
-  override def register(registrationRequest: RegistrationRequest): F[Validated[RegistrationRequestError, Account]] = ???
     
   override def create(account: Account): F[UUID] =
     sql"""
       INSERT INTO accounts(
         account_email,
         account_username,
-        account_age,
+        account_password,
+        account_birth_date,
         account_height,
         account_weight
       ) VALUES (
         ${account.email},
         ${account.username},
-        ${account.age},
+        ${account.passwordHash},
+        ${account.birthDate},
         ${account.height},
         ${account.weight}
       )
