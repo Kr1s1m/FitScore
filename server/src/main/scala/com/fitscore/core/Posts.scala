@@ -146,14 +146,14 @@ object PostsPlayground extends IOApp.Simple:
   def program(postgres: Transactor[IO]) =
     for
       posts <- PostsLive.make[IO](postgres)
-      _     <- posts.create(fromDTOtoPost(dummyDTO))
+     // _     <- posts.create(fromDTOtoPost(dummyDTO))
       //_     <- posts.update
-      v     <- posts.create(fromDTOtoPost(dummyDTO))
-      s     <- posts.create(fromDTOtoPost(dummyDTO))
-      az    <- posts.getById(UUID.randomUUID())
-      _     <- IO.println(az)
-      list  <- posts.all
-      _     <- IO.println(list)
+     // v     <- posts.create(fromDTOtoPost(dummyDTO))
+    //  s     <- posts.create(fromDTOtoPost(dummyDTO))
+   //   az    <- posts.getById(UUID.randomUUID())
+     // _     <- IO.println(az)
+    //  list  <- posts.all
+     // _     <- IO.println(list)
     yield ()
 
   override def run: IO[Unit] = makePostgres.use(program)

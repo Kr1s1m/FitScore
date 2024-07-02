@@ -24,7 +24,7 @@ enum Msg:
   case Close
   case Open
   case ToDo
-  case LoadAccounts(accounts: List[Account])
+  case LoadAccounts(accounts: List[AccountDTO])
   case RegisterAccount
   case UsernameInput(username:String)
   case EmailInput(username:String)
@@ -37,7 +37,7 @@ enum Msg:
   case Error(e: String)
 
 case class Model(
-                  accounts: List[Account] = List(),
+                  accounts: List[AccountDTO] = List(),
                   email:String="",
                   username:String="",
                   age:String="",
@@ -69,43 +69,32 @@ object App extends TyrianApp[Msg, Model]:
     (Model(), Cmd.None)
 
   private def registerHtml(model: Model): Html[Msg] =
-    div()(model.pages.map{case DynPage.Register => div()(
+    div(cls := (if (model.pages.head == DynPage.Register) "login-popup show-popup" else "hide-popup login-popup"))(model.pages.map{case DynPage.Register => div()(
     div(id := "register-overlay")(
       div(id := "register-popup")(
-        div(id := "register-popup-content", style :=
-          "position: fixed; " +
-            "top: 0; left: 0; width: 100%; height: 100%; " +
-            "background-color: rgba(0, 0, 0, 0.2); display: " +
-            "flex; justify-content: center; " +
-            "align-items: center;")(
-          div(id := "background", style := "width: 500px; height: 700px; background-color: rgba(0, 0, 0.2, 0.1); border: 1px solid black;" + "display: " +
-            "flex; justify-content: center; " +
-            "align-items: center;"
-          )(div(style:="fixed;")(
-            input(`type` := "text", placeholder := "Email", onInput(email => Msg.EmailInput(email))), br, //15
-            input(maxLength := maxUserLength,`type` := "text", placeholder := "Username", onInput(username => Msg.UsernameInput(username))),text(s"Limit:${model.username.length.toString}/$maxUserLength"), br,
+        div(id := "register-popup-content")(
+          div(id := "background"
+          )(div()(
+            div(cls:="rounded-block")(),
+            input(value := model.email,`type` := "text", placeholder := "Email", onInput(email => Msg.EmailInput(email))), br, //15
+            input(maxLength := maxUserLength,value := model.username,`type` := "text", placeholder := "Username", onInput(username => Msg.UsernameInput(username)))),
+            div(cls:="text")(if model.username.length < maxUserLength-4 then text("") else text(s"Maximum username length:${model.username.length.toString}/$maxUserLength"),br,
             input(`type` := "text", placeholder := "Password", onInput(password => Msg.ToDo)), br,
             input(`type` := "text", placeholder := "ConfirmPassword", onInput(username => Msg.ToDo)), br,
             input(`type` := "text", placeholder := "Age", onInput(age => Msg.AgeInput(age))), br,
-            input(`type` := "text", placeholder := "Height", onInput(height => Msg.HeightInput(height))), br,
-            input(`type` := "text", placeholder := "Weight", onInput(weight => Msg.WeightInput(weight))), br,
+              input(value := model.height,`type` := "number",step:="1", placeholder := "Height", onInput(height => Msg.HeightInput(height))),
+            input(value := model.weight,`type` := "text", placeholder := "Weight", onInput(weight => Msg.WeightInput(weight))), br,
             button(onClick(Msg.RegisterAccount))("Register"), button(onClick(Msg.LogIn))("Login"), br,
             button(onClick(Msg.Close))("Close")))))))
+
     case _ => div()()})
   val maxUserLength = 15
   private def loginHtml(model: Model): Html[Msg] =
-    div()(model.pages.map { case DynPage.Login => div()(
+    div(cls := (if (model.pages.head == DynPage.Login) "login-popup show-popup" else "hide-popup login-popup"))(model.pages.map { case DynPage.Login => div()(
       div(id := "login-overlay")(
         div(id := "login-popup")(
-          div(id := "login-popup-content", style :=
-            "position: fixed; " +
-              "top: 0; left: 0; width: 100%; height: 100%; " +
-              "background-color: rgba(0, 0, 0, 0.2); display: " +
-              "flex; justify-content: center; " +
-              "align-items: center;")(
-            div(id := "background", style := "width: 500px; height: 700px; background-color: rgba(0, 0, 0.2, 0.1); border: 1px solid black;" + "display: " +
-              "flex; justify-content: center; " +
-              "align-items: center;"
+          div(id := "login-popup-content")(
+            div(id := "background"
             )(div()(
               input(`type` := "text", placeholder := "Email", onInput(email => Msg.EmailInput(email))), br,
               input(`type` := "text", placeholder := "Password", onInput(password => Msg.ToDo)), br,
@@ -142,12 +131,21 @@ object App extends TyrianApp[Msg, Model]:
 
     case Msg.LogIn => (model.copy(pages=List(DynPage.Login)),Cmd.None)
 
-    case Msg.UsernameInput(x)  => if model.username.length < maxUserLength then (model.copy(username=x),Cmd.None) else (model.copy(username=model.username.tail),Cmd.None)
+    case Msg.UsernameInput(x)  => if model.username.length < maxUserLength then
+      (model.copy(username=x),Cmd.None) else
+      (model.copy(username=model.username.tail),Cmd.None)
+
     case Msg.AgeInput(x)  => (model.copy(age=x),Cmd.None)
     case Msg.EmailInput(x)  => (model.copy(email=x),Cmd.None)
-    case Msg.HeightInput(x)  => (model.copy(height=x),Cmd.None)
+
+    case Msg.HeightInput(x)  => if model.height.forall(_.isDigit) then
+      (model.copy(height=x),Cmd.None)
+    else
+      (model, Cmd.None)
+   // case Msg.HeightInput(x)  => (model.copy(height=x),Cmd.None)
+
     case Msg.WeightInput(x)  => (model.copy(weight=x),Cmd.None)
-    case Msg.Error(e) => (model, Cmd.None)
+    case Msg.Error(_) => (model, Cmd.None)
 
 
     case Msg.LoadAccounts(list) =>
@@ -157,7 +155,7 @@ object App extends TyrianApp[Msg, Model]:
     case Msg.HoldInformation(s:String) => (model, Cmd.None)
     case Msg.RegisterAccount =>
         val accounts = (model.email,model.username,model.age,model.height,model.weight)
-        val account = Account(accounts._1,accounts._2,accounts._3.toShort,accounts._4.toShort,accounts._5.toDouble)
+        val account = Account(accounts._1,accounts._2,"",accounts._3.toShort,accounts._4.toShort,accounts._5.toDouble)
         (model.copy(accounts = account+: model.accounts), backendCallRegister(account))
   }
 

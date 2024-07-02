@@ -14,9 +14,27 @@ import java.util.UUID
 //);
 
 object account:
+
+  case class RegistrationRequest(
+                                  email: String,
+                                  username: String,
+                                  //password
+                                  password:String,
+                                  passwordConfirmation:String,
+                                  //date of birth
+                                  brithDay: String,
+                                  brithMouth: String,
+                                  brithYear: String,
+
+                                  height: String,
+                                  weight: String
+
+
+                                )
   case class Account(
                       email: String,
                       username: String,
+                      passwordHash:String,
                       age: Short,
                       height: Short,
                       weight: Double
@@ -50,6 +68,7 @@ object account:
   object Account:
     val dummy = Account(
       "dummy@fitscore.com",
+      "dummy",
       "dummy",
       1,
       2,

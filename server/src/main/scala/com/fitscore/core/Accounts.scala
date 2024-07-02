@@ -13,8 +13,14 @@ import doobie.util.ExecutionContexts
 import doobie.hikari.HikariTransactor
 
 import java.time.LocalDateTime
+import cats.data.Validated
+import cats.data.Validated.*
+import com.fitscore.errors.RegistrationRequestError
+import com.fitscore.errors.RegistrationRequestError.*
+
 
 trait Accounts[F[_]]: // "algebra"
+  def register(registrationRequest: RegistrationRequest) : F[Validated[RegistrationRequestError,Account]]
   def create(account: Account): F[UUID]
   def getById(id: UUID): F[Option[AccountDTO]]
   def all: F[List[AccountDTO]]
@@ -26,7 +32,11 @@ trait Accounts[F[_]]: // "algebra"
 
   def delete(id: UUID): F[Int]
 
+
 class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Accounts[F]:
+
+  override def register(registrationRequest: RegistrationRequest): F[Validated[RegistrationRequestError, Account]] = ???
+    
   override def create(account: Account): F[UUID] =
     sql"""
       INSERT INTO accounts(
