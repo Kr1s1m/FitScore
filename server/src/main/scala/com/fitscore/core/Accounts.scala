@@ -1,8 +1,5 @@
 package com.fitscore.core
 
-import java.sql.{Date => SqlDate}
-
-import cats.Semigroup
 
 import java.util.UUID
 import cats.effect.*
@@ -11,25 +8,28 @@ import doobie.implicits.*
 import doobie.postgres.implicits.*
 import doobie.util.transactor.Transactor
 import com.fitscore.domain.account.*
+import doobie.Fragment
 
 import java.util as ju
-import doobie.util.ExecutionContexts
+import doobie.util.{ExecutionContexts, Get, Put}
 import doobie.hikari.HikariTransactor
+import doobie.syntax.SqlInterpolator.SingleFragment
 
-import java.time.format.DateTimeFormatter
-import java.time.{LocalDate, LocalDateTime}
-//import com.fitscore.validation.Validated
 import cats.data.{Validated, NonEmptyChain}
 import cats.data.Validated.*
 import com.fitscore.errors.RegistrationRequestError
 import com.fitscore.errors.RegistrationRequestError.*
-import com.fitscore.utils.Date
-import com.fitscore.validation.AccountValidator
 
 
 trait Accounts[F[_]]: // "algebra"
   def create(account: Account): F[UUID]
+  def getBy[A :Get :Put](value: A, field: String): F[Option[AccountDTO]]
   def getById(id: UUID): F[Option[AccountDTO]]
+  def getByEmail(email: String): F[Option[AccountDTO]]
+  def getByUsername(username: String): F[Option[AccountDTO]]
+  def existsBy[E, R](f: F[Option[R]], e: E): F[Validated[E, R]]
+  def existsByUsername(username: String): F[Validated[NonEmptyChain[RegistrationRequestError], AccountDTO]]
+  def existsByEmail(username: String): F[Validated[NonEmptyChain[RegistrationRequestError], AccountDTO]]
   def all: F[List[AccountDTO]]
   def updateStats(updateRequest: AccountStatsUpdateRequest): F[Int]
   def updateUsername(updateRequest: AccountUsernameUpdateRequest): F[Int]
@@ -40,9 +40,6 @@ trait Accounts[F[_]]: // "algebra"
 class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Accounts[F]:
     
   override def create(account: Account): F[UUID] =
-    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-    val list = account.birthDate.format(formatter).split('-').map(_.toInt)
-    println(account.birthDate)
     sql"""
       INSERT INTO accounts(
         account_email,
@@ -55,7 +52,7 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
         ${account.email},
         ${account.username},
         ${account.passwordHash},
-        ${LocalDate.of(list.head, list.tail.head, list.tail.tail.head)},
+        ${account.birthDate},
         ${account.height},
         ${account.weight}
       )
@@ -64,26 +61,54 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
       .withUniqueGeneratedKeys[UUID]("account_id")
       .transact(transactor)
 
-  override def getById(id: UUID): F[Option[AccountDTO]] =
+  def getBy[A :Get :Put](value: A, field: String): F[Option[AccountDTO]] =
     sql"""
-          SELECT
-            account_id,
-            account_date_created,
-            account_email,
-            account_username,
-            account_birth_date,
-            account_height,
-            account_weight
-          FROM accounts
-          WHERE account_id=$id
-    """
-    .query[AccountDTO]
-    .option
-    .transact(transactor)
-    .map {
-      case a@Some(_) => a
-      case _ => println(s"[Internal Error] getById: Not found id in accounts : $id"); None
+            SELECT
+              account_id,
+              account_date_created,
+              account_email,
+              account_username,
+              account_birth_date,
+              account_height,
+              account_weight
+            FROM accounts
+            WHERE ${Fragment.const(field)}=$value
+      """
+      .query[AccountDTO]
+      .option
+      .transact(transactor)
+      .map {
+        case a@Some(_) => a
+        case _ => println(s"[Internal Error] getBy: Not found $field in accounts : $value"); None
+      }
+  override def getById(id: UUID): F[Option[AccountDTO]] =
+    getBy(id, "account_id")
+
+  override def getByEmail(email: String): F[Option[AccountDTO]] =
+    getBy(email, "account_email")
+
+  override def getByUsername(username: String): F[Option[AccountDTO]] =
+    getBy(username, "account_username")
+  
+  override def existsBy[E, R](f: F[Option[R]], e: E): F[Validated[E, R]] =
+    f.flatMap{
+      case Some(x) => Valid(x).pure[F]
+      case None => Invalid(e).pure[F]
     }
+  override def existsByEmail(username: String): F[Validated[NonEmptyChain[RegistrationRequestError], AccountDTO]] =
+    existsBy(getByUsername(username), NonEmptyChain(UsernameIsInUse))
+//    getByUsername(username).flatMap {
+//      case Some(x) => Valid(x).pure[F]
+//      case None => Invalid(NonEmptyChain(UsernameIsInUse)).pure[F]
+//    }
+  
+  override def existsByUsername(username: String): F[Validated[NonEmptyChain[RegistrationRequestError], AccountDTO]] =
+    existsBy(getByUsername(username), NonEmptyChain(UsernameIsInUse))
+//    getByUsername(username).flatMap{
+//      case Some(x) => Valid(x).pure[F]
+//      case None    => Invalid(NonEmptyChain(UsernameIsInUse)).pure[F]
+//    }
+
   override def all: F[List[AccountDTO]] =
     sql"""
         SELECT
@@ -148,6 +173,7 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
     .update
     .run
     .transact(transactor)
+
 
 object AccountsLive:
   def make[F[_]: Concurrent](postgres: Transactor[F]): F[AccountsLive[F]] =
