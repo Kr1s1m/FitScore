@@ -21,7 +21,7 @@ import com.fitscore.validation.AccountValidator
 
 class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Http4sDsl[F]:
   private val prefix = "/accounts"
-  
+
   //TODO: maybe move this to a new routes file/class related to new service class Authentication?
   //POST /accounts/register { registrationRequest }
   private val registerAccountRoute: HttpRoutes[F] = HttpRoutes.of[F] {
@@ -29,7 +29,7 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
       request.as[RegistrationRequest].flatMap( regReq =>
         AccountValidator.register(regReq).fold(
           //TODO: errors should be chained errors from the validation and turned into strings with some functionality showErrors?
-          errors => BadRequest(s"${showErrors(errors)}"),
+          errors => BadRequest(s"${errors.toString}"),
           account => Created(accounts.create(account)) //TODO: use additional queries with account. about email and username
         )
       )

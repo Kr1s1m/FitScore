@@ -14,12 +14,21 @@ import com.fitscore.errors.DateError
 import com.fitscore.errors.DateError.*
 import com.fitscore.utils.PasswordUtils
 import com.fitscore.utils.Date
+import cats.Invariant.catsApplicativeForArrow
+import cats.effect.{IO, IOApp}
+import com.fitscore.utils.Date.toIsoString
+import com.fitscore.validation.AccountValidator.validateBirthDate
 
 given Semigroup[RegistrationRequestError] with
-  def combine(x: RegistrationRequestError, y: RegistrationRequestError): NonEmptyChain[RegistrationRequestError] = NonEmptyChain(x, y)
+  def combine(x: RegistrationRequestError, y: RegistrationRequestError): RegistrationRequestError = (x, y) match {
+    case (a, b) => b
+  }
 
 given Semigroup[DateError] with
-  def combine(x: DateError, y: DateError): NonEmptyChain[DateError] = NonEmptyChain(x, y)
+  def combine(x: DateError, y: DateError): DateError = (x, y) match {
+    case (a, b) => a
+  }
+
 
   extension [A](opt: Option[A])
     def toValidated[E](onEmpty: => E): Validated[E, A] =
@@ -28,21 +37,27 @@ given Semigroup[DateError] with
 object AccountValidator:
 
   //TODO: Maybe errors arent actually being chained and need to be wrapped in NonEmptyChain
-  def register(regReq: RegistrationRequest): Validated[RegistrationRequestError, Account] =
+  def register(regReq: RegistrationRequest): Validated[NonEmptyChain[RegistrationRequestError], Account] =
     (
       AccountValidator.validateEmail(regReq.email),
       AccountValidator.validateUsername(regReq.username),
       AccountValidator.validatePassword(regReq.password, regReq.passwordConfirmation),
-      AccountValidator.validateBirthDate(regReq.birthYear, regReq.birthMonth, regReq.birthDay).map(Date.toIsoString),
+      AccountValidator.validateBirthDateFinal(regReq.birthYear, regReq.birthMonth, regReq.birthDay),
       AccountValidator.validateHeight(regReq.height),
       AccountValidator.validateWeight(regReq.weight)
     ).mapN(Account.apply)
 
   private def validate[E,A](value: A, p: A => Boolean, e: E): Validated[E,A] = Some(value).filter(p).toValidated(e)
   
-  private def validateUsername(username:String): Validated[RegistrationRequestError,String] = validate(username,_.nonEmpty,NameIsEmpty)
+  private def validateUsername(username:String): Validated[NonEmptyChain[RegistrationRequestError],String] =
+    validate(username,_.nonEmpty,NonEmptyChain(NameIsEmpty))
 
-  private def validateEmail(email: String): Validated[RegistrationRequestError, String] =
+  private def validateBirthDateFinal(year: String,month:String,day:String ): Validated[NonEmptyChain[RegistrationRequestError], String] =
+    validateBirthDate(year,month,day) match
+      case Valid(d) => Valid(toIsoString(d))
+      case Invalid(chain) => Invalid(NonEmptyChain(RegistrationRequestError.InvalidBirthdayDate(chain)))
+
+  private def validateEmail(email: String): Validated[NonEmptyChain[RegistrationRequestError], String] =
     val regex = """^[a-zA-Z0-9\.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"""
     if regex.r.matches(email) then
       def checkEmpty(e: String): Boolean =
@@ -50,44 +65,42 @@ object AccountValidator:
       validate(
         email,
         checkEmpty,
-        InvalidEmail(email)
+        NonEmptyChain(InvalidEmail(email))
       )
-    else Invalid(InvalidEmail(email))
+    else Validated.invalid(NonEmptyChain(InvalidEmail(email)))
 
-  private def validatePassword(password: String, passwordConfirmation: String): Validated[RegistrationRequestError, String] =
+  private def validatePassword(password: String, passwordConfirmation: String): Validated[NonEmptyChain[RegistrationRequestError], String] =
     def hasSymbolVariety(s: String): Boolean = s.exists(_.isDigit) && s.exists(_.isLetter) && s.exists(!_.isLetterOrDigit)
     (
-      validate(password, _.length >= 8, PasswordTooShort),
-      validate(password, hasSymbolVariety, PasswordRequiresGreaterSymbolVariety),
-      validate(password, _ == passwordConfirmation, PasswordsDoNotMatch)
-    ).mapN((_, _, p) => PasswordUtils.hash(p))
+      validate(password, _.length >= 8, NonEmptyChain(PasswordTooShort)),
+      validate(password, hasSymbolVariety, NonEmptyChain(PasswordRequiresGreaterSymbolVariety)),
+      validate(password, _ == passwordConfirmation, NonEmptyChain(PasswordsDoNotMatch))
+    ).mapN((_,_,p) => PasswordUtils.hash(p))
 
-  private def validateBirthDate(birthYear: String, birthMonth: String, birthDay: String): Validated[RegistrationRequestError, Date] =
-      val validatedYear: Validated[DateError, Int] =
-        birthYear.toIntOption.toValidated(YearIsNotAnInteger(birthYear))
+  def validateBirthDate(birthYear: String, birthMonth: String, birthDay: String): Validated[NonEmptyChain[DateError], Date] =
+      val validatedYear: Validated[NonEmptyChain[DateError], Int] = birthYear.toIntOption match
+        case Some(d) => Valid(d)
+        case _ => Validated.invalid(NonEmptyChain(DateError.YearIsNotAnInteger(birthYear)))
 
-      val validatedMonth: Validated[DateError, Int] =
-        (for
-          monthInt <- birthMonth.toIntOption.toValidated(MonthIsNotAnInteger(birthMonth)).toEither
-          _        <- validate(monthInt, m => m >= 1 && m <= 12, MonthOutOfRange(monthInt)).toEither
-        yield monthInt).toValidated
 
-      val validatedDay: Validated[DateError, Int] =
-        (for
-          dayInt <- birthDay.toIntOption.toValidated(DayIsNotAnInteger(birthDay)).toEither
-          _      <- validate(dayInt, d => d >= 1 && d <= 31, DayOutOfRange(dayInt)).toEither
-        yield dayInt).toValidated
+      val validatedMonth: Validated[NonEmptyChain[DateError], Int] = birthMonth.toIntOption match
+        case Some(d) => if d>12 || d<1 then Validated.invalid(NonEmptyChain(DateError.DayOutOfRange(d))) else Valid(d)
+        case _ => Validated.invalid(NonEmptyChain(DateError.MonthIsNotAnInteger(birthMonth)))
+
+
+      val validatedDay: Validated[NonEmptyChain[DateError], Int] = birthDay.toIntOption match
+        case Some(d) => if d>31 || d<1 then Validated.invalid(NonEmptyChain(DateError.DayOutOfRange(d))) else Valid(d)
+        case _ => Validated.invalid(NonEmptyChain(DateError.DayIsNotAnInteger(birthDay)))
+
+
 
 
       (
         validatedYear,
         validatedMonth,
         validatedDay
-      ).mapN((y, m, d) =>
-        Date.applyOption(y, m, d).toValidated(InvalidDate(y, m, d))
-          .leftMap(errors => Invalid(InvalidBirthdayDate(errors)))
-          .andThen(date => validate(date, _ <= Date.current, BirthdayDateIsInTheFuture(date)))
-      )
+      ).mapN(Date.apply)
+
 
 //      (
 //        validatedYear,
@@ -100,19 +113,22 @@ object AccountValidator:
 //          date => validate(date, _ <= Date.current, BirthdayDateIsInTheFuture(date))
 //        )
       
-  private def validateHeight(height: String): Validated[RegistrationRequestError, Short] =
-    (for
-      heightShort <- height.toShortOption.toValidated(HeightIsNotShort(height)).toEither
-      _           <- validate(heightShort, h => h >= 30 && h <= 300, InvalidHeight(heightShort)).toEither
-    yield heightShort).toValidated
+  private def validateHeight(height: String): Validated[NonEmptyChain[RegistrationRequestError], Short] = height.toShortOption match
+      case Some(d) => if d<30 || d>300 then Validated.invalid(NonEmptyChain(RegistrationRequestError.InvalidHeight(d))) else Valid(d)
+      case _ => Validated.invalid(NonEmptyChain(RegistrationRequestError.HeightIsNotShort(height)))
 
-  private def validateWeight(weight: String): Validated[RegistrationRequestError, Double] =
-    (for
-      weightDouble <- weight.toDoubleOption.toValidated(HeightIsNotShort(weight)).toEither
-      _ <- validate(weightDouble, h => h >= 1 && h <= 1000, InvalidWeight(weightDouble)).toEither
-    yield weightDouble).toValidated
+  private def validateWeight(height: String): Validated[NonEmptyChain[RegistrationRequestError], Double] = height.toDoubleOption match
+    case Some(d) => if d < 1.0 || d > 1000.0 then Validated.invalid(NonEmptyChain(RegistrationRequestError.InvalidWeight(d))) else Valid(d)
+    case _ => Validated.invalid(NonEmptyChain(RegistrationRequestError.WeightIsNotDouble(height)))
 
+object AccountsPlayground extends IOApp.Simple:
 
+  def program:IO[Unit] =
+    for
+      test  <- IO.println(AccountValidator.register(RegistrationRequest("","","1234","3","d1","21","w2","w","w")))
+    yield ()
+
+  override def run: IO[Unit] = program
 //  import cats.data.{Validated, NonEmptyChain}
 //  import cats.implicits._
 //
