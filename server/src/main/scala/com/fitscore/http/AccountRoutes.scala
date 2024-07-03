@@ -31,9 +31,30 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
           //TODO: errors should be chained errors from the validation and turned into strings with some functionality showErrors?
           errors => BadRequest(s"${errors.toString}"),
           account =>
-            accounts.create(account).flatMap(Created(_)) //TODO: use additional queries with account. about email and username
-            //(accounts.existsByEmail(account.email), accounts.existsByUsername(account.username))
+            for
+               emailNotExists <- accounts.notExistsEmail(account.email)
+               usernameNotExists <- accounts.notExistsUsername(account.username)
+               response <- (emailNotExists,usernameNotExists).mapN((x,y)=>true).fold(
+                 e=>BadRequest(s"${e.toString}"),
+                 r=>accounts.create(account).flatMap(Created(_))
+               )
+            yield response
+
         )
+      )
+  }
+
+  private val loginRoute: HttpRoutes[F] = HttpRoutes.of[F] {
+    case request@POST -> Root / "login" =>
+      request.as[LoginRequest].flatMap(logReq =>
+        for
+           email <- accounts.existsByEmail(logReq.email)
+           matchingPassword <- accounts.existsMatchingPassword(logReq.email,logReq.password)
+           response <- (email,matchingPassword).mapN((x,y)=>true).fold(
+             e=>BadRequest(s"${e.toString}"),
+             r=>Accepted("USPEH")
+           )
+        yield response
       )
   }
 
@@ -120,7 +141,8 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
 
   val routes: HttpRoutes[F] = Router(
     prefix -> (
-        registerAccountRoute <+>
+        registerAccountRoute <+> 
+        loginRoute <+>
         createAccountRoute <+> 
         getByIdRoute <+>
         getByEmailRoute <+>

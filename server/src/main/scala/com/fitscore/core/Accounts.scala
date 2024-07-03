@@ -14,11 +14,13 @@ import java.util as ju
 import doobie.util.{ExecutionContexts, Get, Put}
 import doobie.hikari.HikariTransactor
 import doobie.syntax.SqlInterpolator.SingleFragment
-
-import cats.data.{Validated, NonEmptyChain}
+import cats.data.{NonEmptyChain, Validated}
 import cats.data.Validated.*
 import com.fitscore.errors.RegistrationRequestError
 import com.fitscore.errors.RegistrationRequestError.*
+import com.fitscore.errors.LoginRequestError
+import com.fitscore.errors.LoginRequestError.*
+import com.fitscore.utils.PasswordUtils
 
 
 trait Accounts[F[_]]: // "algebra"
@@ -29,7 +31,11 @@ trait Accounts[F[_]]: // "algebra"
   def getByUsername(username: String): F[Option[AccountDTO]]
   def existsBy[E, R](f: F[Option[R]], e: E): F[Validated[E, R]]
   def existsByUsername(username: String): F[Validated[NonEmptyChain[RegistrationRequestError], AccountDTO]]
-  def existsByEmail(username: String): F[Validated[NonEmptyChain[RegistrationRequestError], AccountDTO]]
+  def existsByEmail(email: String): F[Validated[NonEmptyChain[LoginRequestError], AccountDTO]]
+  def notExistsUsername(username: String): F[Validated[NonEmptyChain[RegistrationRequestError], Boolean]]
+  def notExistsEmail(email: String): F[Validated[NonEmptyChain[RegistrationRequestError], Boolean]]
+  def existsMatchingPassword(email:String, password: String): F[Validated[NonEmptyChain[LoginRequestError], String]]
+  def getPasswordByEmail(email:String): F[Option[String]]
   def all: F[List[AccountDTO]]
   def updateStats(updateRequest: AccountStatsUpdateRequest): F[Int]
   def updateUsername(updateRequest: AccountUsernameUpdateRequest): F[Int]
@@ -95,8 +101,8 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
       case Some(x) => Valid(x).pure[F]
       case None => Invalid(e).pure[F]
     }
-  override def existsByEmail(username: String): F[Validated[NonEmptyChain[RegistrationRequestError], AccountDTO]] =
-    existsBy(getByUsername(username), NonEmptyChain(UsernameIsInUse))
+  override def existsByEmail(email: String): F[Validated[NonEmptyChain[LoginRequestError], AccountDTO]] =
+    existsBy(getByEmail(email), NonEmptyChain(EmailDoesNotExist))
 //    getByUsername(username).flatMap {
 //      case Some(x) => Valid(x).pure[F]
 //      case None => Invalid(NonEmptyChain(UsernameIsInUse)).pure[F]
@@ -108,6 +114,46 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
 //      case Some(x) => Valid(x).pure[F]
 //      case None    => Invalid(NonEmptyChain(UsernameIsInUse)).pure[F]
 //    }
+
+  //username -> Account -> Error -> UsernameIsInUse
+  def notExistsUsername(username:String): F[Validated[NonEmptyChain[RegistrationRequestError], Boolean]] =
+    existsByUsername(username).flatMap(x=>x.fold(
+      notFound => Valid(true).pure[F],
+      found => Invalid(NonEmptyChain(UsernameIsInUse)).pure[F]  //should add him
+    )
+    )
+
+  def notExistsEmail(email: String): F[Validated[NonEmptyChain[RegistrationRequestError], Boolean]] =
+    existsByEmail(email).flatMap(x => x.fold(
+      notFound => Valid(true).pure[F],
+      found => Invalid(NonEmptyChain(EmailIsInUse)).pure[F] //should add him
+      )
+    )
+
+  def existsMatchingPassword(email:String,password:String): F[Validated[NonEmptyChain[LoginRequestError], String]] =
+    getPasswordByEmail(email).flatMap{
+      case Some(p) =>
+        //println(s"$password | ${PasswordUtils.hash(password)} | $p | ${PasswordUtils.check(password,p)}")
+        if PasswordUtils.check(password,p) then
+        Valid(p).pure[F]
+         else Invalid(NonEmptyChain(WrongPassword)).pure[F]
+      case None => Valid(email).pure[F]
+    }
+
+  def getPasswordByEmail(email:String): F[Option[String]] =
+    sql"""
+     SELECT
+     account_password
+     FROM accounts
+     WHERE account_email = $email
+      """
+    .query[String]
+    .option
+    .transact(transactor)
+
+
+
+
 
   override def all: F[List[AccountDTO]] =
     sql"""
