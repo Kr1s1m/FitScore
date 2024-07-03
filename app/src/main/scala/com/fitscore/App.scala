@@ -88,6 +88,18 @@ object App extends TyrianApp[Msg, Model]:
           case Right(r) => Msg.Error(r.toString)
         },
       err => Msg.Error(err.toString)))
+
+  private def backendCallLogin(account: LoginRequest): Cmd[IO, Msg] =
+    val json = account.asJson.toString
+    Http.send(
+      Request.post("http://localhost:8080/accounts/login", tyrian.http.Body.json(json)),
+      Decoder[Msg](
+        resp =>
+          parse(resp.body) match {
+            case Left(e) => Msg.Error(e.getMessage + s"${resp.toString}")
+            case Right(r) => Msg.Error(r.toString)
+          },
+        err => Msg.Error(err.toString)))
   override def init(flags: Map[String, String]): (Model, Cmd[IO, Msg]) =
     (Model(), Cmd.None)
   private def birthDate(model: Model):Html[Msg] =
@@ -182,7 +194,7 @@ object App extends TyrianApp[Msg, Model]:
             div(id := "background"
             )(div()(
               input(`type` := "text", placeholder := "Email", onInput(email => Msg.EmailInput(email))), br,
-              input(`type` := "text", placeholder := "Password", onInput(password => Msg.ToDo)), br,
+              input(`type` := "password", placeholder := "Password", onInput(password => Msg.InputPassword(password))), br,
               button(onClick(Msg.LogIn))("Login"),button(onClick(Msg.Open))("Register"),br,
               button(onClick(Msg.Close))("Close")))))))
     case _ => div()()
@@ -226,7 +238,9 @@ object App extends TyrianApp[Msg, Model]:
     case Msg.Close => (model.copy(pages=List(DynPage.Home)),Cmd.None)
     case Msg.Open => (model.copy(pages=List(DynPage.Register)),Cmd.None)
 
-    case Msg.LogIn => (model.copy(pages=List(DynPage.Login)),Cmd.None)
+    case Msg.LogIn =>
+      val login = LoginRequest(model.email,model.password)
+      (model.copy(pages=List(DynPage.Login)),backendCallLogin(login))
 
     case Msg.UsernameInput(x)  => if model.username.length < maxUserLength then
       (model.copy(username=x),Cmd.None) else
