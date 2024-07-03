@@ -7,7 +7,7 @@ import io.circe.Json
 import io.circe.generic.auto.*
 import io.circe.parser.*
 import tyrian.*
-import tyrian.Html.{p, *}
+import tyrian.Html.{button, p, text, *}
 import tyrian.http.*
 
 import scala.scalajs.js
@@ -26,7 +26,7 @@ enum Msg:
   case Close
   case Open
   case ToDo
-  case LoadAccounts(accounts: List[RegistrationRequest])
+  case LoadAccounts(accounts: List[AccountPrint])
   case RegisterAccount
   case UsernameInput(username:String)
   case EmailInput(username:String)
@@ -43,7 +43,7 @@ enum Msg:
   case Error(e: String)
 
 case class Model(
-                  accounts: List[RegistrationRequest] = List(),
+                  accounts: List[AccountPrint] = List(),
                   email: String="",
                   username: String="",
                   //password
@@ -69,7 +69,7 @@ object App extends TyrianApp[Msg, Model]:
       Request.get("http://localhost:8080/accounts"),
       Decoder[Msg](
         resp =>
-          parse(resp.body).flatMap(_.as[List[RegistrationRequest]]) match {
+          parse(resp.body).flatMap(_.as[List[AccountPrint]]) match {
             case Left(e)     => Msg.Error(e.getMessage)
             case Right(list) => Msg.LoadAccounts(list)
           },
@@ -115,6 +115,27 @@ object App extends TyrianApp[Msg, Model]:
       )
     )
   def quickButtonCheck(p:Boolean): String = if p then "red" else "green"
+
+  def lbButton(attribute:String): Html[Msg] = button(onToggle(Msg.NoMsg),cls:="cool-button active")(attribute) //leaderboarddbuttons
+  private def leaderboardHtml(competitors:List[(String,String,String)]):Html[Msg] =
+    div(cls:="leaderboard")(
+    lbButton("Leaderboard"),br,lbButton("Name"),lbButton("Height"),lbButton("Weight"),lbButton("Bodyfat"),
+    div()(
+      competitors.map(leaderboardEntry)
+        //leaderboardEntry(model.accounts(2)),
+
+        // Add more entries as needed
+      )
+    )
+
+  def
+  def keyComponent(t:String,show: String): Html[Msg] =
+    div(cls:=s"${show}")(text(t))
+  def leaderboardEntry(height:String,weight:String,bodyfat:String): Html[Msg] =
+    div(cls:="leaderboard-entry")(
+      div(cls:="leaderboard-entry")(List(keyComponent("Rank ?","rank"),keyComponent("Dero","name"),keyComponent("randomStat1","score"),keyComponent("randomStat2","score"))
+    ))
+
   private def registerHtml(model: Model): Html[Msg] =
     div(cls := (if (model.pages.head == DynPage.Register) "login-popup show-popup" else "hide-popup login-popup"))(model.pages.map{case DynPage.Register => div()(
     div(id := "register-overlay")(
@@ -130,7 +151,7 @@ object App extends TyrianApp[Msg, Model]:
             div(cls := quickButtonCheck(!(model.password == model.passwordConfirmation && model.passwordConfirmation.nonEmpty)))(input(`type` := "text", placeholder := "ConfirmPassword", onInput(password => Msg.InputPasswordConfirm(password)))), br,
             div()(if model.password == model.passwordConfirmation then text("") else text(s"Passwords do not match!")),br,
             div(cls:= quickButtonCheck(model.height.isEmpty))(input(value := model.height,`type` := "number",min:="0",step:="1", placeholder := "Height", onInput(height => Msg.HeightInput(height)))),
-            div(cls:=quickButtonCheck(model.weight.isEmpty))(input(value := model.weight,`type` := "text", placeholder := "Weight", onInput(weight => Msg.WeightInput(weight)))), br,
+            div(cls:=quickButtonCheck(model.weight.isEmpty))(input(value := model.weight,`type` := "number",min:="0",step:="0.5",placeholder := "Weight", onInput(weight => Msg.WeightInput(weight)))), br,
             div()(if absoluteCheck(model) then
               div(cls:="green")(button(onClick(Msg.RegisterAccount))("Register"))
             else div(cls:= "red")(button(onClick(Msg.NoMsg))("Please fill in the form"))),
@@ -167,8 +188,10 @@ object App extends TyrianApp[Msg, Model]:
               button(onClick(Msg.Close))("Close")))))))
     case _ => div()()
     })
+  val testCompetitors = List(("190","63","12.5"),("180","79","15.0"),("160","80","20.0"))
   override def view(model: Model): Html[Msg] =
-    div(id := "Home page")(
+    div(cls:="leaderboard",id := "Home page")(
+        leaderboardHtml(testCompetitors),
         button(onClick(Msg.ShowAll))("Show all"), br,
         button(onClick(Msg.HideAll))("Hide all"), br,
         text(model.error),
@@ -222,8 +245,6 @@ object App extends TyrianApp[Msg, Model]:
    // case Msg.HeightInput(x)  => (model.copy(height=x),Cmd.None)
 
     case Msg.WeightInput(x)  => (model.copy(weight=x),Cmd.None)
-    case Msg.Error(_) => (model, Cmd.None)
-
 
     case Msg.LoadAccounts(list) =>
       if model.accounts == list
@@ -233,7 +254,7 @@ object App extends TyrianApp[Msg, Model]:
     case Msg.RegisterAccount =>
       //  val account = RegistrationRequest(model.email,model.username,model.height.toShort,model.weight.toDouble)
         val regAccount = RegistrationRequest(model.email,model.username,model.password,model.passwordConfirmation,model.birthDay,model.birthMonth,model.birthYear,model.height,model.weight)
-        (model.copy(accounts = regAccount +: model.accounts), backendCallRegister(regAccount))
+        (model, backendCallRegister(regAccount))
   }
 
   override def subscriptions(model: Model): Sub[IO, Msg] =
