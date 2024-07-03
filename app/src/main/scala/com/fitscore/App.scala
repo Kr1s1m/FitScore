@@ -128,7 +128,6 @@ object App extends TyrianApp[Msg, Model]:
       )
     )
 
-  def
   def keyComponent(t:String,show: String): Html[Msg] =
     div(cls:=s"${show}")(text(t))
   def leaderboardEntry(height:String,weight:String,bodyfat:String): Html[Msg] =
