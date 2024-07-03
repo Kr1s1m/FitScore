@@ -30,7 +30,7 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
         AccountValidator.register(regReq).fold(
           //TODO: errors should be chained errors from the validation and turned into strings with some functionality showErrors?
           errors => BadRequest(s"${errors.toString}"),
-          account => Created(accounts.create(account)) //TODO: use additional queries with account. about email and username
+          account => accounts.create(account).flatMap(x=>BadRequest(x.toString)) //TODO: use additional queries with account. about email and username
         )
       )
   }
@@ -108,7 +108,7 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
         updateStatsByIdRoute <+> 
         updateUsernameByIdRoute <+> 
         updateEmailByIdRoute <+> 
-        deleteByIdRoute
+        deleteByIdRoute <+> registerAccountRoute
       )
   )
 

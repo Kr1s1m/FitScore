@@ -1,5 +1,6 @@
 package com.fitscore.core
 
+import java.sql.{Date => SqlDate}
 
 import cats.Semigroup
 
@@ -15,7 +16,8 @@ import java.util as ju
 import doobie.util.ExecutionContexts
 import doobie.hikari.HikariTransactor
 
-import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.{LocalDate, LocalDateTime}
 //import com.fitscore.validation.Validated
 import cats.data.{Validated, NonEmptyChain}
 import cats.data.Validated.*
@@ -38,6 +40,9 @@ trait Accounts[F[_]]: // "algebra"
 class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Accounts[F]:
     
   override def create(account: Account): F[UUID] =
+    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    val list = account.birthDate.format(formatter).split('-').map(_.toInt)
+    println(account.birthDate)
     sql"""
       INSERT INTO accounts(
         account_email,
@@ -50,7 +55,7 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
         ${account.email},
         ${account.username},
         ${account.passwordHash},
-        ${account.birthDate},
+        ${LocalDate.of(list.head, list.tail.head, list.tail.tail.head)},
         ${account.height},
         ${account.weight}
       )
@@ -66,7 +71,7 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
             account_date_created,
             account_email,
             account_username,
-            account_age,
+            account_birth_date,
             account_height,
             account_weight
           FROM accounts
@@ -86,7 +91,7 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
           account_date_created,
           account_email,
           account_username,
-          account_age,
+          account_birth_date,
           account_height,
           account_weight
         FROM accounts
@@ -101,7 +106,7 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
         sql"""
              UPDATE accounts
              SET
-               account_age = ${account.age},
+               account_birth_date = ${account.birthDate},
                account_height = ${account.height},
                account_weight = ${account.weight}
              WHERE account_id = ${account.id}

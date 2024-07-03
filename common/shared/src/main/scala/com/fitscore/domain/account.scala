@@ -1,6 +1,8 @@
 package com.fitscore.domain
 
-import java.time.LocalDateTime
+
+import java.time.format.DateTimeFormatter
+import java.time.{LocalDate, LocalDateTime}
 import java.util.UUID
 
 //create table accounts(
@@ -49,7 +51,7 @@ object account:
                         dateCreated: LocalDateTime,
                         email: String,
                         username: String,
-                        age: Short,
+                        birthDate: String,
                         height: Short,
                         weight: Double
                        )
@@ -58,13 +60,13 @@ object account:
                          dateCreated: LocalDateTime,
                          email: String,
                          username: String,
-                         age: Short,
+                         birthDate: String,
                          height: Short,
                          weight: Double
                        )
   case class AccountStatsUpdateRequest(
                                  id: UUID,
-                                 age: Short,
+                                 birthDate: String,
                                  height: Short,
                                  weight: Double
                                )
@@ -83,7 +85,7 @@ object account:
       "dummy@fitscore.com",
       "dummy",
       "dummy",
-      "2000-02-02",
+      "2002-03-12",
       2,
       3.3
     )

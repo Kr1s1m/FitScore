@@ -5,8 +5,7 @@ create table accounts(
     account_email character varying(255),
     account_username character varying(25),
     account_password character varying(255),
-    account_age smallint,
-   -- account_birth_date DATE,
+    account_birth_date DATE,
     account_height smallint,
     account_weight numeric(4,1)
 );
@@ -64,7 +63,6 @@ create table accounts_roles(
     role_id uuid REFERENCES roles(role_id)
 );
 
-
 -- Inserts:
 insert into roles(
 	role_access_type
@@ -77,38 +75,3 @@ insert into roles(
 ) values (
 	'admin'
 );
-
-insert into accounts(
-	account_email,
-	account_username,
-	account_age,
-	account_height,
-	account_weight
-) values (
-	'dero@fitscore.com',
-	'Dero',
-	25,
-	164,
-	67.4
-);
-
-insert into accounts(
-	account_email,
-	account_username,
-	account_age,
-	account_height,
-	account_weight
-) values (
-	'kr1s1m@fitscore.com',
-	'Kr1s1m',
-	25,
-	173,
-	54.5
-);
-
-INSERT INTO accounts_roles(account_id, role_id)
-VALUES
-((SELECT account_id FROM accounts WHERE account_username = 'Dero'), (SELECT role_id FROM roles WHERE role_access_type = 'admin')),
-((SELECT account_id FROM accounts WHERE account_username = 'Dero'), (SELECT role_id FROM roles WHERE role_access_type = 'user')),
-((SELECT account_id FROM accounts WHERE account_username = 'Kr1s1m'), (SELECT role_id FROM roles WHERE role_access_type = 'user')),
-((SELECT account_id FROM accounts WHERE account_username = 'Kr1s1m'), (SELECT role_id FROM roles WHERE role_access_type = 'admin'));

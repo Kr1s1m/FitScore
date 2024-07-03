@@ -57,6 +57,8 @@ case class Model(
                   height: String="",
                   weight: String="",
                   pages:List[DynPage]=List(DynPage.Home),
+
+                  error: String=""
                 )
 
 @JSExportTopLevel("FitScoreApp")
@@ -77,7 +79,15 @@ object App extends TyrianApp[Msg, Model]:
 
   private def backendCallRegister(account: RegistrationRequest): Cmd[IO, Msg] =
     val json = account.asJson.toString
-    Http.send(Request.post("http://localhost:8080/accounts/create",tyrian.http.Body.json(json)),sdecode)
+    Http.send(
+      Request.post("http://localhost:8080/accounts/register",tyrian.http.Body.json(json)),
+      Decoder[Msg](
+      resp =>
+        parse(resp.body) match {
+          case Left(e)     => Msg.Error(e.getMessage+s"${resp.toString}")
+          case Right(r) => Msg.Error(r.toString)
+        },
+      err => Msg.Error(err.toString)))
   override def init(flags: Map[String, String]): (Model, Cmd[IO, Msg]) =
     (Model(), Cmd.None)
   private def birthDate(model: Model):Html[Msg] =
@@ -161,6 +171,7 @@ object App extends TyrianApp[Msg, Model]:
     div(id := "Home page")(
         button(onClick(Msg.ShowAll))("Show all"), br,
         button(onClick(Msg.HideAll))("Hide all"), br,
+        text(model.error),
         registerHtml(model),
         loginHtml(model),
         div()(button(onClick(Msg.Open))("Register")),
@@ -178,6 +189,7 @@ object App extends TyrianApp[Msg, Model]:
   override def update(model: Model): Msg => (Model, Cmd[IO, Msg]) = {
     case Msg.ToDo => (model, Cmd.None)
     case Msg.NoMsg => (model, Cmd.None)
+    case Msg.Error(e) => (model.copy(error=e),Cmd.None)
 
     case Msg.InputPassword(x) => if model.password.length < minPasswordLength then
       (model.copy(password=x),Cmd.None) else
