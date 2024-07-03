@@ -30,7 +30,9 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
         AccountValidator.register(regReq).fold(
           //TODO: errors should be chained errors from the validation and turned into strings with some functionality showErrors?
           errors => BadRequest(s"${errors.toString}"),
-          account => accounts.create(account).flatMap(x=>BadRequest(x.toString)) //TODO: use additional queries with account. about email and username
+          account =>
+            accounts.create(account).flatMap(Created(_)) //TODO: use additional queries with account. about email and username
+            //(accounts.existsByEmail(account.email), accounts.existsByUsername(account.username))
         )
       )
   }
@@ -50,6 +52,22 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
     case GET -> Root / UUIDVar(accountId) => accounts.getById(accountId).flatMap {
       case Some(account) => Ok(account)
       case None => NotFound(s"Fetch failed: Not found account id $accountId")
+    }
+  }
+
+  //GET /accounts/{email}
+  private val getByEmailRoute: HttpRoutes[F] = HttpRoutes.of[F] {
+    case GET -> Root / "email" / accountEmail => accounts.getByEmail(accountEmail).flatMap {
+      case Some(account) => Ok(account)
+      case None => NotFound(s"Fetch failed: Not found account email $accountEmail")
+    }
+  }
+
+  //GET /accounts/{username}
+  private val getByUsernameRoute: HttpRoutes[F] = HttpRoutes.of[F] {
+    case GET -> Root / "username" / accountUsername => accounts.getByUsername(accountUsername).flatMap {
+      case Some(account) => Ok(account)
+      case None => NotFound(s"Fetch failed: Not found account username $accountUsername")
     }
   }
 
@@ -102,13 +120,16 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
 
   val routes: HttpRoutes[F] = Router(
     prefix -> (
+        registerAccountRoute <+>
         createAccountRoute <+> 
-        getByIdRoute <+> 
+        getByIdRoute <+>
+        getByEmailRoute <+>
+        getByUsernameRoute <+>
         getAllRoute <+> 
         updateStatsByIdRoute <+> 
         updateUsernameByIdRoute <+> 
         updateEmailByIdRoute <+> 
-        deleteByIdRoute <+> registerAccountRoute
+        deleteByIdRoute
       )
   )
 
