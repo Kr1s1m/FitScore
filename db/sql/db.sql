@@ -5,7 +5,7 @@ create table accounts(
     account_email character varying(255),
     account_username character varying(25),
     account_password character varying(255),
-    account_birth_date DATE,
+    account_birth_date date,
     account_height smallint,
     account_weight numeric(4,1)
 );
@@ -75,3 +75,42 @@ insert into roles(
 ) values (
 	'admin'
 );
+
+insert into accounts(
+	account_email,
+	account_username,
+	account_password,
+	account_birth_date,
+	account_height,
+	account_weight
+) values (
+	'dero@fitscore.com',
+	'Dero',
+	'(@*#N#Y#(@!)H#$H(DN($$(&*!JD8',
+	'1998-08-08',
+	164,
+	67.4
+);
+
+insert into accounts(
+	account_email,
+	account_username,
+	account_password,
+	account_birth_date,
+	account_height,
+	account_weight
+) values (
+	'kr1s1m@fitscore.com',
+	'Kr1s1m',
+	'&#$^DHR$&(M8d4j(!#&!!3893jd8',
+	'1994-04-04',
+	173,
+	61.5
+);
+
+INSERT INTO accounts_roles(account_id, role_id)
+VALUES
+((SELECT account_id FROM accounts WHERE account_username = 'Dero'), (SELECT role_id FROM roles WHERE role_access_type = 'admin')),
+((SELECT account_id FROM accounts WHERE account_username = 'Dero'), (SELECT role_id FROM roles WHERE role_access_type = 'user')),
+((SELECT account_id FROM accounts WHERE account_username = 'Kr1s1m'), (SELECT role_id FROM roles WHERE role_access_type = 'user')),
+((SELECT account_id FROM accounts WHERE account_username = 'Kr1s1m'), (SELECT role_id FROM roles WHERE role_access_type = 'admin'));
