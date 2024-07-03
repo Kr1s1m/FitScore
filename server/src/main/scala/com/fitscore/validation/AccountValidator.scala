@@ -52,8 +52,8 @@ object AccountValidator:
   private def validateUsername(username:String): Validated[NonEmptyChain[RegistrationRequestError],String] =
     validate(username,_.nonEmpty,NonEmptyChain(NameIsEmpty))
 
-  private def validateBirthDateFinal(year: String,month:String,day:String ): Validated[NonEmptyChain[RegistrationRequestError], String] =
-    validateBirthDate(year,month,day) match
+  def validateBirthDateFinal(year: String,month:String,day:String ): Validated[NonEmptyChain[RegistrationRequestError], String] =
+    validateBirthDateLastCheck(year,month,day) match
       case Valid(d) => Valid(toIsoString(d))
       case Invalid(chain) => Invalid(NonEmptyChain(RegistrationRequestError.InvalidBirthdayDate(chain)))
 
@@ -84,7 +84,7 @@ object AccountValidator:
 
 
       val validatedMonth: Validated[NonEmptyChain[DateError], Int] = birthMonth.toIntOption match
-        case Some(d) => if d>12 || d<1 then Validated.invalid(NonEmptyChain(DateError.DayOutOfRange(d))) else Valid(d)
+        case Some(d) => if d>12 || d<1 then Validated.invalid(NonEmptyChain(DateError.MonthOutOfRange(d))) else Valid(d)
         case _ => Validated.invalid(NonEmptyChain(DateError.MonthIsNotAnInteger(birthMonth)))
 
 
@@ -92,15 +92,16 @@ object AccountValidator:
         case Some(d) => if d>31 || d<1 then Validated.invalid(NonEmptyChain(DateError.DayOutOfRange(d))) else Valid(d)
         case _ => Validated.invalid(NonEmptyChain(DateError.DayIsNotAnInteger(birthDay)))
 
-
-
-
       (
         validatedYear,
         validatedMonth,
         validatedDay
       ).mapN(Date.apply)
 
+  def validateBirthDateLastCheck(year:String,month:String,day:String): Validated[NonEmptyChain[DateError], Date] =
+    validateBirthDate(year,month,day) match
+      case Valid(d) => Date.applyOption(year.toInt,month.toInt,day.toInt).toValidated(NonEmptyChain(DateError.InvalidDate(year.toInt,month.toInt,day.toInt)))
+      case errors => errors
 
 //      (
 //        validatedYear,
@@ -125,7 +126,9 @@ object AccountsPlayground extends IOApp.Simple:
 
   def program:IO[Unit] =
     for
-      test  <- IO.println(AccountValidator.register(RegistrationRequest("","","1234","3","d1","21","w2","w","w")))
+      test  <- IO.println(AccountValidator.register(RegistrationRequest("","","2000","3000","29","2","19000","w","w")))
+      _  <- IO.println(AccountValidator.validateBirthDateFinal("1986","2","29"))
+      _  <- IO.println(Date.applyOption(3985,2,29))
     yield ()
 
   override def run: IO[Unit] = program
