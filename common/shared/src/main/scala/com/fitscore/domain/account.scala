@@ -41,7 +41,7 @@ object account:
                       email: String,
                       username: String,
                       passwordHash: String,
-                      birthDate: String,
+                      birthDate: LocalDate,
                       height: Short,
                       weight: Double
                     )
@@ -57,7 +57,7 @@ object account:
                        )
 
   case class AccountPrint(
-                         dateCreated: LocalDateTime,
+                         dateCreated: String,
                          email: String,
                          username: String,
                          birthDate: String,
@@ -85,7 +85,7 @@ object account:
       "dummy@fitscore.com",
       "dummy",
       "dummy",
-      "2002-03-12",
+      LocalDate.of(2002, 3, 12),
       2,
       3.3
     )

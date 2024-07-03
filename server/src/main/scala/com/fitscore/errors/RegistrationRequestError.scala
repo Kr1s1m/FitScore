@@ -4,8 +4,8 @@ import com.fitscore.utils.Date
 import cats.data.NonEmptyChain
 
 enum RegistrationRequestError:
-  case NameIsEmpty
-  case NameIsInUse
+  case UsernameIsEmpty
+  case UsernameIsInUse
   case EmailIsInUse
   case InvalidEmail(email:String) //sends to backend for check
   case PasswordsDoNotMatch
