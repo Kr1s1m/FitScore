@@ -36,14 +36,14 @@ class VotesRoutes[F[_]: Concurrent] private (votes: Votes[F], posts: Posts[F], r
     case request @ POST -> Root / "vote" =>
       request.as[VoteDTO].flatMap(voteDTO =>
         votes.vote(voteDTO).flatMap{
-          case Some((id, voteType, voteTarget)) => 
+          case Some((id, voteType, voteTarget, balanceChange)) => 
             voteTarget match
-              case Post => posts.updateVoteBalance(voteDTO.postId, voteType).flatMap{
+              case Post => posts.updateVoteBalance(voteDTO.postId, voteType, balanceChange).flatMap{
                 case 0 => NotFound(s"Post balance update failed: Not found post id ${voteDTO.postId}")
                 case i => Ok(s"$i entries modified from posts")  
               }
               case Reply => voteDTO.replyId match {
-                case Some(replyId) => replies.updateVoteBalance(replyId, voteType).flatMap{
+                case Some(replyId) => replies.updateVoteBalance(replyId, voteType, balanceChange).flatMap{
                   case 0 => NotFound(s"Post balance update failed: Not found post id $replyId")
                   case i => Ok(s"$i entries modified from replies")
                 }

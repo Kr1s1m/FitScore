@@ -43,6 +43,12 @@ class ReplyRoutes[F[_]: Concurrent] private (replies: Replies[F]) extends Http4s
     case GET -> Root => replies.all.flatMap(replies => Ok(replies))
   }
 
+  //GET /replies/karma/{accountId}
+  private val getReplyKarmaByAccountIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
+    case GET -> Root / "karma" / UUIDVar(accountId) =>
+      replies.getReplyKarmaByAccountId(accountId).flatMap(karma => Ok(karma))
+  }
+
   //PATCH /replies/update { Reply }
   private val updateByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case request @ PATCH -> Root / "update" =>
@@ -69,6 +75,7 @@ class ReplyRoutes[F[_]: Concurrent] private (replies: Replies[F]) extends Http4s
       createReplyRoute <+>
       getByIdRoute <+>
       getAllRoute <+>
+      getReplyKarmaByAccountIdRoute <+>
       updateByIdRoute <+>
       deleteByIdRoute
     )

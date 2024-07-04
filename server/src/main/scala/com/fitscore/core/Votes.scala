@@ -20,11 +20,16 @@ import doobie.util.ExecutionContexts
 import doobie.hikari.HikariTransactor
 
 trait Votes[F[_]]: // "algebra"
-  def vote(voteDTO: VoteDTO): F[Option[(UUID, VoteType, VoteTarget)]]
+  def vote(voteDTO: VoteDTO): F[Option[(UUID, VoteType, VoteTarget, Int)]]
   def getByAccountAndPostOrReplyIds(accountId: UUID, postId: UUID, replyId: Option[UUID]): F[Option[Vote]]
   def delete(id: UUID): F[Int]
 class VotesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Votes[F]:
-  override def vote(voteDTO: VoteDTO): F[Option[(UUID, VoteType, VoteTarget)]] =
+  override def vote(voteDTO: VoteDTO): F[Option[(UUID, VoteType, VoteTarget, Int)]] =
+    def invert(voteType: VoteType): VoteType =
+      voteType match
+        case Upvote => Downvote
+        case Downvote => Upvote
+        
     def insertQuery(voteType: VoteType, voteTarget: VoteTarget): F[UUID] =
       sql"""
         INSERT INTO votes(
@@ -44,19 +49,19 @@ class VotesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Vo
       .update
       .withUniqueGeneratedKeys[UUID]("vote_id")
       .transact(transactor)
-
+    
     getByAccountAndPostOrReplyIds(voteDTO.accountId, voteDTO.postId, voteDTO.replyId).flatMap{
       case Some(existingVote) =>
         (existingVote.voteType, existingVote.voteTarget, voteDTO.voteType, voteDTO.voteTarget) match
           case (exType, exTarget, vType, vTarget) if exType == vType && exTarget == vTarget =>
-            delete(existingVote.id).map(_ => Some((existingVote.id, existingVote.voteType, existingVote.voteTarget)))
+            delete(existingVote.id).map(_ => Some((existingVote.id, invert(existingVote.voteType), existingVote.voteTarget, 1)))
           case (exType, exTarget, vType, vTarget) if exType != vType && exTarget == vTarget =>
             for
               _   <- delete(existingVote.id)
               id  <- insertQuery(voteDTO.voteType, voteDTO.voteTarget)
-            yield Some((id, voteDTO.voteType, voteDTO.voteTarget))
+            yield Some((id, voteDTO.voteType, voteDTO.voteTarget, 2))
           case _ => None.pure[F]
-      case None => insertQuery(voteDTO.voteType, voteDTO.voteTarget).map(id => Some((id, voteDTO.voteType, voteDTO.voteTarget)))
+      case None => insertQuery(voteDTO.voteType, voteDTO.voteTarget).map(id => Some((id, voteDTO.voteType, voteDTO.voteTarget, 1)))
     }
 
 
