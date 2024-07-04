@@ -41,6 +41,7 @@ object account:
                             username: String,
                             sessionId: String
                           )
+
   case class Account(
                       email: String,
                       username: String,
@@ -59,6 +60,16 @@ object account:
                         height: Short,
                         weight: Double
                        )
+
+  case class AccountInfo(
+                          id: String,
+                          dateCreated: String,
+                          email: String,
+                          username: String,
+                          birthDate: String,
+                          height: Short,
+                          weight: Double,
+                        )
 
   case class AccountPrint(
                          dateCreated: String,
