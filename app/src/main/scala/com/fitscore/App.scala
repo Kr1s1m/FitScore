@@ -9,7 +9,7 @@ import io.circe.parser.*
 import tyrian.*
 import tyrian.Html.{button, p, text, *}
 import tyrian.http.*
-
+import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.js.annotation.*
 import io.circe.syntax.*
@@ -37,6 +37,7 @@ enum Msg:
   case MonthInput(username: String)
   case YearInput(username: String)
   case LogIn
+  case StoreCookie(loginResponse:LoginResponse)
   case InputPasswordConfirm(p:String)
   case InputPassword(p:String) //8 min
   case HoldInformation(s:String)
@@ -58,7 +59,8 @@ case class Model(
                   weight: String="",
                   pages:List[DynPage]=List(DynPage.Home),
 
-                  error: String=""
+                  error: String="",
+                  storeCookie: LoginResponse = LoginResponse("","")
                 )
 
 @JSExportTopLevel("FitScoreApp")
@@ -95,9 +97,9 @@ object App extends TyrianApp[Msg, Model]:
       Request.post("http://localhost:8080/accounts/login", tyrian.http.Body.json(json)),
       Decoder[Msg](
         resp =>
-          parse(resp.body) match {
-            case Left(e) => Msg.Error(e.getMessage + s"${resp.toString}")
-            case Right(r) => Msg.Error(r.toString)
+          parse(resp.body).flatMap(_.as[LoginResponse]) match {
+            case Left(e) => Msg.Error(s"${resp.body}")
+            case Right(r) => Msg.StoreCookie(r)
           },
         err => Msg.Error(err.toString)))
   override def init(flags: Map[String, String]): (Model, Cmd[IO, Msg]) =
@@ -193,7 +195,7 @@ object App extends TyrianApp[Msg, Model]:
           div(id := "login-popup-content")(
             div(id := "background"
             )(div()(
-              input(`type` := "text", placeholder := "Email", onInput(email => Msg.EmailInput(email))), br,
+              input(`type` := "text",value := model.email ,placeholder := "Email", onInput(email => Msg.EmailInput(email))), br,
               input(`type` := "password", placeholder := "Password", onInput(password => Msg.InputPassword(password))), br,
               button(onClick(Msg.LogIn))("Login"),button(onClick(Msg.Open))("Register"),br,
               button(onClick(Msg.Close))("Close")))))))
@@ -222,7 +224,7 @@ object App extends TyrianApp[Msg, Model]:
 
   override def update(model: Model): Msg => (Model, Cmd[IO, Msg]) = {
     case Msg.ToDo => (model, Cmd.None)
-    case Msg.NoMsg => (model, Cmd.None)
+    case Msg.NoMsg => (model.copy(error=""), Cmd.None)
     case Msg.Error(e) => (model.copy(error=e),Cmd.None)
 
     case Msg.InputPassword(x) => if model.password.length < minPasswordLength then
@@ -235,8 +237,12 @@ object App extends TyrianApp[Msg, Model]:
     case Msg.ShowAll => (model,backendCall)
     case Msg.HideAll => (Model(),Cmd.None)
 
-    case Msg.Close => (model.copy(pages=List(DynPage.Home)),Cmd.None)
-    case Msg.Open => (model.copy(pages=List(DynPage.Register)),Cmd.None)
+    case Msg.Close => (model.copy(pages=List(DynPage.Home),password=""),Cmd.None)
+    case Msg.Open => (model.copy(pages=List(DynPage.Register),password=""),Cmd.None)
+
+    case Msg.StoreCookie(r) =>
+      dom.window.sessionStorage.setItem(model.storeCookie.username, model.storeCookie.sessionId)
+      (model.copy(storeCookie=r),Cmd.None)
 
     case Msg.LogIn =>
       val login = LoginRequest(model.email,model.password)
