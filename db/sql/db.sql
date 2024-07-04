@@ -17,6 +17,7 @@ create table posts(
     post_date_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     post_title character varying(100),
     post_body text
+    post_vote_balance integer NOT NULL DEFAULT 0
 );
 
 create table replies(
@@ -27,6 +28,7 @@ create table replies(
     reply_date_created timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     reply_date_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     reply_body text
+    reply_vote_balance integer NOT NULL DEFAULT 0
 );
 
 create table verification_tokens(
@@ -36,20 +38,13 @@ create table verification_tokens(
     verification_token_token character varying(255)
 );
 
-create type vote_type as enum ('up', 'down');
-
-create table post_votes(
-    post_vote_id uuid primary key NOT NULL DEFAULT gen_random_uuid (),
+create table votes(
+    vote_id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid (),
     account_id uuid NOT NULL REFERENCES accounts(account_id),
     post_id uuid NOT NULL REFERENCES posts(post_id),
-    post_vote_vote_type vote_type
-);
-
-create table reply_votes(
-    reply_vote_id uuid primary key NOT NULL DEFAULT gen_random_uuid (),
-    account_id uuid NOT NULL REFERENCES accounts(account_id),
-    reply_id uuid NOT NULL REFERENCES posts(post_id),
-    reply_vote_vote_type vote_type
+    reply_id uuid REFERENCES replies(reply_id),
+    vote_type character varying(255) NOT NULL DEFAULT 'upvote',
+    vote_target character varying(255) NOT NULL DEFAULT 'post'
 );
 
 create table roles(

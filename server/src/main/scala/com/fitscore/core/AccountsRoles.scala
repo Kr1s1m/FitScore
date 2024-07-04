@@ -3,23 +3,22 @@ package com.fitscore.core
 import java.util.UUID
 import cats.effect.*
 import cats.syntax.all.*
+import com.fitscore.domain.enums.AccessType
+import com.fitscore.domain.enums.AccessType.*
 import doobie.implicits.*
 import doobie.postgres.implicits.*
 import doobie.util.transactor.Transactor
-
-import com.fitscore.enums.AccessType
-import com.fitscore.enums.AccessType.*
 
 import java.util as ju
 import doobie.util.ExecutionContexts
 import doobie.hikari.HikariTransactor
 
 trait AccountsRoles[F[_]]: // "algebra"
-  def create(accountId: UUID, roleId: UUID): F[Unit]
+  def assign(accountId: UUID, roleId: UUID): F[Unit]
+  def spawn(accessType: AccessType): F[UUID]
   def getIdByAccessType(accessType: AccessType): F[Option[UUID]]
 class AccountsRolesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends AccountsRoles[F]:
-  override def create(accountId: UUID, roleId: UUID): F[Unit] =
-
+  override def assign(accountId: UUID, roleId: UUID): F[Unit] =
     sql"""
       INSERT INTO accounts_roles(
         account_id, role_id
@@ -31,6 +30,23 @@ class AccountsRolesLive[F[_]: Concurrent] private (transactor: Transactor[F]) ex
       .withUniqueGeneratedKeys("account_id", "role_id")
       .transact(transactor)
 
+  def spawn(accessType: AccessType): F[UUID] =
+    def insertQuery(s: String): F[UUID] =
+      sql"""
+          INSERT INTO roles(
+            role_access_type
+          ) VALUES (
+            $s
+          )
+      """
+      .update
+      .withUniqueGeneratedKeys[UUID]("role_id")
+      .transact(transactor)
+
+    getIdByAccessType(accessType).flatMap{
+      case Some(id) => id.pure[F]
+      case None     => insertQuery(accessType.toString.toLowerCase)
+    }
   override def getIdByAccessType(accessType: AccessType = User): F[Option[UUID]] =
     def selectQuery(x: String) =
         sql"""
@@ -47,17 +63,8 @@ class AccountsRolesLive[F[_]: Concurrent] private (transactor: Transactor[F]) ex
         case _ => println(s"[Internal Error] getIdByAccessType: Not found access type in roles : $x"); None
       }
 
-    accessType match
-      case User   => selectQuery("user")
-      case Admin  => selectQuery("admin")
+    selectQuery(accessType.toString.toLowerCase)
 
-//(accountId, roleId).pure[F]
-
-//  create table accounts_roles(
-//    PRIMARY KEY(account_id, role_id),
-//    account_id uuid REFERENCES accounts (account_id),
-//    role_id uuid REFERENCES roles (role_id)
-//  );
 
 object AccountsRolesLive:
   def make[F[_]: Concurrent](postgres: Transactor[F]): F[AccountsRolesLive[F]] =
