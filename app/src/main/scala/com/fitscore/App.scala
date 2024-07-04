@@ -2,6 +2,7 @@ package com.fitscore
 
 
 import cats.effect.*
+import com.fitscore.DynPage.Profile
 import com.fitscore.domain.account.*
 import io.circe.Json
 import io.circe.generic.auto.*
@@ -10,16 +11,23 @@ import tyrian.*
 import tyrian.Html.{button, p, text, *}
 import tyrian.http.*
 import org.scalajs.dom
+
 import scala.scalajs.js
 import scala.scalajs.js.annotation.*
 import io.circe.syntax.*
+
+import scala.scalajs.js.Object.entries
 
 
 enum DynPage:
   case Login
   case Register
   case Home
+  case Leader
+  case Profile(name:String)
 enum Msg:
+  case LoadLeaderBoard
+  case LogOut
   case NoMsg
   case ShowAll
   case HideAll
@@ -37,11 +45,17 @@ enum Msg:
   case MonthInput(username: String)
   case YearInput(username: String)
   case LogIn
+  case LogInOpen
   case StoreCookie(loginResponse:LoginResponse)
   case InputPasswordConfirm(p:String)
   case InputPassword(p:String) //8 min
   case HoldInformation(s:String)
   case Error(e: String)
+  case OpenProfile(name:String)
+  case LoadProfile
+  case CloseProfile
+  case TryToGetProfile(email: String)
+  case GotProfile(profile: AccountInfo)
 
 case class Model(
                   accounts: List[AccountPrint] = List(),
@@ -60,7 +74,11 @@ case class Model(
                   pages:List[DynPage]=List(DynPage.Home),
 
                   error: String="",
-                  storeCookie: LoginResponse = LoginResponse("","")
+                  storeCookie: Option[LoginResponse] = None,
+                  profile: AccountInfo = AccountInfo("","","","","",0,0.0),
+                  loadProfile: Boolean = false,
+                  otherProfile: AccountInfo = AccountInfo("","","","","",0,0.0),
+                  leaderBoardIsOpen :Boolean = false,
                 )
 
 @JSExportTopLevel("FitScoreApp")
@@ -87,7 +105,7 @@ object App extends TyrianApp[Msg, Model]:
       resp =>
         parse(resp.body) match {
           case Left(e)     => Msg.Error(e.getMessage+s"${resp.toString}")
-          case Right(r) => Msg.Error(r.toString)
+          case Right(r) => Msg.NoMsg
         },
       err => Msg.Error(err.toString)))
 
@@ -98,12 +116,37 @@ object App extends TyrianApp[Msg, Model]:
       Decoder[Msg](
         resp =>
           parse(resp.body).flatMap(_.as[LoginResponse]) match {
-            case Left(e) => Msg.Error(s"${resp.body}")
+            case Left(e) => Msg.Error(e.toString+s"${resp.body}")
             case Right(r) => Msg.StoreCookie(r)
           },
         err => Msg.Error(err.toString)))
+  private def getAccountByUsername(username: String): Cmd[IO, Msg] =
+    Http.send(
+      Request.get(s"http://localhost:8080/accounts/username/$username"),
+      Decoder[Msg](
+        resp =>
+          parse(resp.body).flatMap(_.as[AccountInfo]) match {
+            case Left(e) => Msg.Error(s"${resp.body}")//+e.getMessage)
+            case Right(acc) => Msg.GotProfile(acc)
+          },
+        err => Msg.Error(err.toString)
+      )
+    )
+
+  private def initCall: Cmd[IO, Msg] =
+    Http.send(
+      Request.get("http://localhost:8080/accounts"),
+      Decoder[Msg](
+        resp =>
+          parse(resp.body).flatMap(_.as[List[AccountPrint]]) match {
+            case Left(e) => Msg.Error(e.getMessage)
+            case Right(list) => Msg.NoMsg
+          },
+        err => Msg.Error(err.toString)
+      )
+    )
   override def init(flags: Map[String, String]): (Model, Cmd[IO, Msg]) =
-    (Model(), Cmd.None)
+    (Model(), initCall)
   private def birthDate(model: Model):Html[Msg] =
     div(cls := "birthdate-container")(
       input(
@@ -130,10 +173,10 @@ object App extends TyrianApp[Msg, Model]:
     )
   def quickButtonCheck(p:Boolean): String = if p then "red" else "green"
 
-  def lbButton(attribute:String): Html[Msg] = button(onToggle(Msg.NoMsg),cls:="cool-button active")(attribute) //leaderboarddbuttons
+  def lbButton(attribute:String,msg: Msg = Msg.ToDo): Html[Msg] = button(onToggle(msg),cls:="cool-button active")(attribute) //leaderboarddbuttons
   private def leaderboardHtml(competitors:List[(String,String,String)]):Html[Msg] =
     div(cls:="leaderboard")(
-    lbButton("Leaderboard"),br,lbButton("Name"),lbButton("Height"),lbButton("Weight"),lbButton("Bodyfat"),
+    lbButton("Name"),lbButton("Height"),lbButton("Weight"),lbButton("Bodyfat"),
     div()(
       competitors.map(leaderboardEntry)
         //leaderboardEntry(model.accounts(2)),
@@ -168,7 +211,7 @@ object App extends TyrianApp[Msg, Model]:
             div()(if absoluteCheck(model) then
               div(cls:="green")(button(onClick(Msg.RegisterAccount))("Register"))
             else div(cls:= "red")(button(onClick(Msg.NoMsg))("Please fill in the form"))),
-            button(onClick(Msg.LogIn))("Login")), br,
+            button(onClick(Msg.LogInOpen))("Login")), br,
             text(s"absolute check:${model.password.length}," +
               s"${model.username.length < maxUserLength}," +
               s"${(model.password == model.passwordConfirmation)}," +
@@ -201,17 +244,59 @@ object App extends TyrianApp[Msg, Model]:
               button(onClick(Msg.Close))("Close")))))))
     case _ => div()()
     })
+  private def profileHtml(model: Model): Html[Msg] =
+    div(
+    cls := "profile-container")(
+    h1("Profile:"),
+    div(
+      cls := "profile-info")(
+      div(
+        cls := "profile-field")(
+        label("Name: "),
+        span(model.profile.username)
+      ),
+        div(
+          cls := "profile-field")(
+          label(s"Email: "),
+          span(s"${model.email}")
+        ),
+          div(
+          cls := "profile-field")(
+          label(s"Height: "),
+          span(s"${model.profile.height}")
+        ),
+          div(
+          cls := "profile-field")(
+          label(s"Weight: "),
+          span(s"${model.profile.weight}")
+        )
+    )
+  )
+
   val testCompetitors = List(("190","63","12.5"),("180","79","15.0"),("160","80","20.0"))
   override def view(model: Model): Html[Msg] =
     div(cls:="leaderboard",id := "Home page")(
-        leaderboardHtml(testCompetitors),
-        button(onClick(Msg.ShowAll))("Show all"), br,
+        lbButton("Leaderboard",Msg.LoadLeaderBoard),
+        button(onClick(Msg.ShowAll))("Show all"),
         button(onClick(Msg.HideAll))("Hide all"), br,
+        div(title:= "profile")(model.storeCookie match
+          case Some(_) => div(cls:="button-container")(button(cls := "cool-button", onClick(Msg.LoadProfile))("Profile"))
+          case None => div()()),
+        div()(
+        if model.loadProfile then
+          profileHtml(model)
+        else
+          div()()
+        ),
         text(model.error),
         registerHtml(model),
         loginHtml(model),
-        div()(button(onClick(Msg.Open))("Register")),
-        div()(button(onClick(Msg.LogIn))("Login")),
+        button(cls := "cool-button",onClick(Msg.Open))("Register"),
+        button(cls := "cool-button",onClick(Msg.ToDo))("Check Cookie"),
+        (model.storeCookie match
+          case Some(_) => button(cls := "cool-button",onClick(Msg.LogOut))("Logout")
+          case _ => button(cls := "cool-button",onClick(Msg.LogInOpen))("Login")),
+        leaderboardHtml(testCompetitors),
         div(`class` := "contents ")(
           model.accounts.map { account =>
             div(account.toString)
@@ -223,9 +308,14 @@ object App extends TyrianApp[Msg, Model]:
    Decoder[Msg](r => Msg.HoldInformation("sauz1"),e => Msg.HoldInformation("saauz"))
 
   override def update(model: Model): Msg => (Model, Cmd[IO, Msg]) = {
-    case Msg.ToDo => (model, Cmd.None)
-    case Msg.NoMsg => (model.copy(error=""), Cmd.None)
+    case Msg.ToDo => (model.copy(error=s"${model.storeCookie}"), Cmd.None)
+    case Msg.NoMsg =>
+      val cookie = entries(dom.window.localStorage).head
+      (model.copy(error="",storeCookie = Some(LoginResponse(cookie._1,cookie._2.toString))), Cmd.None)
+
     case Msg.Error(e) => (model.copy(error=e),Cmd.None)
+    case Msg.LoadLeaderBoard =>
+      (model.copy(leaderBoardIsOpen = true),Cmd.None) //TODO: Not sure on the design yet.
 
     case Msg.InputPassword(x) => if model.password.length < minPasswordLength then
       (model.copy(password=x),Cmd.None) else
@@ -240,13 +330,31 @@ object App extends TyrianApp[Msg, Model]:
     case Msg.Close => (model.copy(pages=List(DynPage.Home),password=""),Cmd.None)
     case Msg.Open => (model.copy(pages=List(DynPage.Register),password=""),Cmd.None)
 
+    case Msg.GotProfile(acc) => (model.copy(profile=acc),Cmd.None)
+
     case Msg.StoreCookie(r) =>
-      dom.window.sessionStorage.setItem(model.storeCookie.username, model.storeCookie.sessionId)
-      (model.copy(storeCookie=r),Cmd.None)
+      dom.window.localStorage.setItem(r.username,r.sessionId)
+      (model.copy(storeCookie=Some(r),pages=List(DynPage.Home)),Cmd.None)
+
+    case Msg.LoadProfile =>
+      val storeCookie = model.storeCookie.getOrElse(LoginResponse("",""))
+      if !model.loadProfile then (model.copy(loadProfile = !model.loadProfile),getAccountByUsername(storeCookie.username))
+      else (model.copy(loadProfile = !model.loadProfile),Cmd.None)
+
+    case Msg.TryToGetProfile(username) => (model.copy(loadProfile = !model.loadProfile),Cmd.None)
+
+    case Msg.LogOut =>
+      dom.window.localStorage.clear()//removeItem(storeCookie.sessionId)
+      (model.copy(storeCookie=None,loadProfile = false,pages=List(DynPage.Home)),Cmd.None)
+
 
     case Msg.LogIn =>
       val login = LoginRequest(model.email,model.password)
-      (model.copy(pages=List(DynPage.Login)),backendCallLogin(login))
+      model.storeCookie match
+        case Some(_)=>(model.copy(pages=List(DynPage.Home),profile=AccountInfo("","",model.email,model.username,model.birthDay,model.height.toShort,model.weight.toDouble)),backendCallLogin(login))
+        case None => (model,backendCallLogin(login))
+
+    case Msg.LogInOpen => (model.copy(pages=List(DynPage.Login)),Cmd.None)
 
     case Msg.UsernameInput(x)  => if model.username.length < maxUserLength then
       (model.copy(username=x),Cmd.None) else
