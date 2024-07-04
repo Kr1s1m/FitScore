@@ -42,6 +42,7 @@ lazy val app = (project in file("app"))
       "io.circe"        %%% "circe-core"    % circeVersion,
       "io.circe"        %%% "circe-parser"  % circeVersion,
       "io.circe"        %%% "circe-generic" % circeVersion,
+      "org.scala-js" %%% "scalajs-dom" % "2.1.0"
 
     ),
     scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
