@@ -42,6 +42,12 @@ class PostRoutes[F[_]: Concurrent] private (posts: Posts[F]) extends Http4sDsl[F
   private val getAllRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case GET -> Root => posts.all.flatMap(posts => Ok(posts))
   }
+  
+  //GET /posts/karma/{accountId}
+  private val getPostKarmaByAccountIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
+    case GET -> Root / "karma" / UUIDVar(accountId) =>
+      posts.getPostKarmaByAccountId(accountId).flatMap(karma => Ok(karma))
+  }
 
   //PATCH /posts/update { Post }
   private val updateByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
@@ -72,6 +78,7 @@ class PostRoutes[F[_]: Concurrent] private (posts: Posts[F]) extends Http4sDsl[F
       createPostRoute <+> 
       getByIdRoute <+>
       getAllRoute <+>
+      getPostKarmaByAccountIdRoute <+>
       updateByIdRoute <+>
       deleteByIdRoute
     )

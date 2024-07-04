@@ -26,8 +26,8 @@ trait Replies[F[_]]: // "algebra"
   def create(reply: Reply): F[UUID]
   def getById(id: UUID): F[Option[ReplyDTO]]
   def all: F[List[ReplyDTO]]
-//  //def allDtos: F[List[Reply]]
-  def updateVoteBalance(id: UUID, voteType: VoteType): F[Int]
+  def getReplyKarmaByAccountId(accountId: UUID): F[Long]
+  def updateVoteBalance(id: UUID, voteType: VoteType, balanceChange: Int): F[Int]
   def update(reply: ReplyUpdateRequest): F[Validated[ReplyUpdateRequestError, Int]]
   def delete(id: UUID): F[Int]
 
@@ -49,16 +49,7 @@ class RepliesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends 
       .update
       .withUniqueGeneratedKeys[UUID]("reply_id")
       .transact(transactor)
-
-//  create table replies(
-//    reply_id uuid primary key NOT NULL DEFAULT gen_random_uuid(),
-//    account_id uuid NOT NULL REFERENCES accounts (account_id),
-//    post_id uuid NOT NULL REFERENCES posts (post_id) ON DELETE CASCADE,
-//    reply_parent_id uuid REFERENCES replies (reply_id) ON DELETE CASCADE,
-//    reply_date_created timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-//    reply_date_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-//    reply_body text
-//  );
+  
   override def getById(id: UUID): F[Option[ReplyDTO]] =
     sql"""
         SELECT
@@ -98,9 +89,18 @@ class RepliesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends 
       .compile
       .toList
 
-  //override def allDtos = all.map(x=>x.map(y=>Reply(y.dateCreated,y.dateUpdated,y.accountId,y.title,y.body)))
+  override def getReplyKarmaByAccountId(accountId: UUID): F[Long] =
+    sql"""
+        SELECT
+            COALESCE(SUM(reply_vote_balance), 0)
+        FROM replies
+        WHERE account_id = $accountId
+    """
+    .query[Long]
+    .unique
+    .transact(transactor)
 
-  override def updateVoteBalance(id: UUID, voteType: VoteType): F[Int] =
+  override def updateVoteBalance(id: UUID, voteType: VoteType, balanceChange: Int): F[Int] =
     def updateQuery(voteMath: String): F[Int] =
       sql"""
           UPDATE replies
@@ -112,8 +112,8 @@ class RepliesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends 
         .transact(transactor)
 
     voteType match
-      case Upvote => updateQuery("+ 1")
-      case Downvote => updateQuery("- 1")
+      case Upvote => updateQuery(s"+ $balanceChange")
+      case Downvote => updateQuery(s"- $balanceChange")
   
   override def update(reply: ReplyUpdateRequest): F[Validated[ReplyUpdateRequestError, Int]] =
     reply.body match

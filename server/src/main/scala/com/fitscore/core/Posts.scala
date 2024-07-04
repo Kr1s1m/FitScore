@@ -26,9 +26,9 @@ trait Posts[F[_]]: // "algebra"
   def create(post: Post): F[UUID]
   def getById(id: UUID): F[Option[PostDTO]]
   def all: F[List[PostDTO]]
-  //def allDtos: F[List[Post]]
+  def getPostKarmaByAccountId(accountId: UUID): F[Long]
+  def updateVoteBalance(id: UUID, voteType: VoteType, balanceChange: Int): F[Int]
   def update(post: PostUpdateRequest): F[Validated[PostUpdateRequestError, Int]]
-  def updateVoteBalance(id: UUID, voteType: VoteType): F[Int]
   def delete(id: UUID): F[Int]
 
 class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Posts[F]:
@@ -85,7 +85,31 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
     .compile
     .toList
 
-  //override def allDtos = all.map(x=>x.map(y=>Post(y.dateCreated,y.dateUpdated,y.accountId,y.title,y.body)))
+  override def getPostKarmaByAccountId(accountId: UUID): F[Long] =
+    sql"""
+        SELECT
+            COALESCE(SUM(post_vote_balance), 0)
+        FROM posts
+        WHERE account_id = $accountId
+    """
+      .query[Long]
+      .unique
+      .transact(transactor)
+
+  override def updateVoteBalance(id: UUID, voteType: VoteType, balanceChange: Int): F[Int] =
+    def updateQuery(voteMath: String): F[Int] =
+      sql"""
+          UPDATE posts
+          SET post_vote_balance = post_vote_balance ${Fragment.const(voteMath)},
+          WHERE post_id = $id
+        """
+        .update
+        .run
+        .transact(transactor)
+
+    voteType match
+      case Upvote => updateQuery(s"+ $balanceChange")
+      case Downvote => updateQuery(s"- $balanceChange")
 
   override def update(post: PostUpdateRequest): F[Validated[PostUpdateRequestError, Int]] =
     val runUpdateQuery =
@@ -112,23 +136,6 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
         val createdElapsedMinutes = Duration.between(post.dateCreated, LocalDateTime.now).toMinutes
         if createdElapsedMinutes >= 15 then Invalid(PostCreatedTimeElapsed).pure[F] else runUpdateQuery
       case _ => runUpdateQuery
-
-  def updateVoteBalance(id: UUID, voteType: VoteType): F[Int] =
-    def updateQuery(voteMath: String): F[Int] =
-      sql"""
-              UPDATE posts
-              SET
-                SET post_vote_balance = post_vote_balance ${Fragment.const(voteMath)},
-              WHERE post_id = $id
-      """
-      .update
-      .run
-      .transact(transactor)
-    
-    voteType match
-      case Upvote => updateQuery("+ 1")
-      case Downvote => updateQuery("- 1")
-    
   
   override def delete(id: UUID): F[Int] =
     sql"""
