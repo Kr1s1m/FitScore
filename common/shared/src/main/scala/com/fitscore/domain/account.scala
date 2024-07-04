@@ -37,6 +37,10 @@ object account:
                            email: String,
                            password: String
                          )
+  case class LoginResponse(
+                            username: String,
+                            sessionId: String
+                          )
   case class Account(
                       email: String,
                       username: String,

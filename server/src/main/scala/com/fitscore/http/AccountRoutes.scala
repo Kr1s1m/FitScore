@@ -11,13 +11,14 @@ import org.http4s.circe.CirceEntityCodec.*
 import org.http4s.dsl.Http4sDsl
 import org.http4s.implicits.*
 import org.http4s.server.Router
-
-import cats.data.{Validated, NonEmptyChain}
+import cats.data.{NonEmptyChain, Validated}
 import cats.data.Validated.*
 import com.fitscore.errors.RegistrationRequestError
 import com.fitscore.errors.RegistrationRequestError.*
 import com.fitscore.utils.Date
 import com.fitscore.validation.AccountValidator
+
+import java.util.UUID
 
 class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Http4sDsl[F]:
   private val prefix = "/accounts"
@@ -50,9 +51,14 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
         for
            email <- accounts.existsByEmail(logReq.email)
            matchingPassword <- accounts.existsMatchingPassword(logReq.email,logReq.password)
-           response <- (email,matchingPassword).mapN((x,y)=>true).fold(
-             e=>BadRequest(s"${e.toString}"),
-             r=>Accepted("USPEH")
+           response <- (email,matchingPassword).mapN((x,y)=>x).fold(
+             errors => BadRequest(s"${errors.toString}"),
+             account =>
+               val sessionId = UUID.randomUUID().toString
+               Response(Status.Ok)
+                 .withEntity(LoginResponse(account.username, sessionId))
+                 .addCookie(ResponseCookie("sessionId", sessionId))
+                 .pure[F]
            )
         yield response
       )
