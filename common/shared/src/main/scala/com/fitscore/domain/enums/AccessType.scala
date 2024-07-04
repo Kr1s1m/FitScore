@@ -1,4 +1,4 @@
-package com.fitscore.enums
+package com.fitscore.domain.enums
 
 enum AccessType:
   case User

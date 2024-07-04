@@ -21,7 +21,8 @@ import com.fitscore.errors.RegistrationRequestError.*
 import com.fitscore.errors.LoginRequestError
 import com.fitscore.errors.LoginRequestError.*
 import com.fitscore.utils.PasswordUtils
-
+import com.fitscore.domain.enums.AccessType
+import com.fitscore.domain.enums.AccessType.*
 
 trait Accounts[F[_]]: // "algebra"
   def create(account: Account): F[UUID]
@@ -37,6 +38,9 @@ trait Accounts[F[_]]: // "algebra"
   def existsMatchingPassword(email:String, password: String): F[Validated[NonEmptyChain[LoginRequestError], String]]
   def getPasswordByEmail(email:String): F[Option[String]]
   def all: F[List[AccountDTO]]
+  def allRole(accessType: AccessType): F[List[AccountDTO]]
+  def allUsers: F[List[AccountDTO]]
+  def allAdmins: F[List[AccountDTO]]
   def updateStats(updateRequest: AccountStatsUpdateRequest): F[Int]
   def updateUsername(updateRequest: AccountUsernameUpdateRequest): F[Int]
   def updateEmail(updateRequest: AccountEmailUpdateRequest): F[Int]
@@ -97,47 +101,38 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
     getBy(username, "account_username")
   
   override def existsBy[E, R](f: F[Option[R]], e: E): F[Validated[E, R]] =
-    f.flatMap{
-      case Some(x) => Valid(x).pure[F]
-      case None => Invalid(e).pure[F]
+    f.map{
+      case Some(x) => Valid(x)
+      case None => Invalid(e)
     }
   override def existsByEmail(email: String): F[Validated[NonEmptyChain[LoginRequestError], AccountDTO]] =
     existsBy(getByEmail(email), NonEmptyChain(EmailDoesNotExist))
-//    getByUsername(username).flatMap {
-//      case Some(x) => Valid(x).pure[F]
-//      case None => Invalid(NonEmptyChain(UsernameIsInUse)).pure[F]
-//    }
   
   override def existsByUsername(username: String): F[Validated[NonEmptyChain[RegistrationRequestError], AccountDTO]] =
     existsBy(getByUsername(username), NonEmptyChain(UsernameIsInUse))
-//    getByUsername(username).flatMap{
-//      case Some(x) => Valid(x).pure[F]
-//      case None    => Invalid(NonEmptyChain(UsernameIsInUse)).pure[F]
-//    }
-
-  //username -> Account -> Error -> UsernameIsInUse
+  
   def notExistsUsername(username:String): F[Validated[NonEmptyChain[RegistrationRequestError], Boolean]] =
-    existsByUsername(username).flatMap(x=>x.fold(
-      notFound => Valid(true).pure[F],
-      found => Invalid(NonEmptyChain(UsernameIsInUse)).pure[F]  //should add him
+    existsByUsername(username).map(x=>x.fold(
+      notFound => Valid(true),
+      found => Invalid(NonEmptyChain(UsernameIsInUse))  //should add him
     )
     )
 
   def notExistsEmail(email: String): F[Validated[NonEmptyChain[RegistrationRequestError], Boolean]] =
-    existsByEmail(email).flatMap(x => x.fold(
-      notFound => Valid(true).pure[F],
-      found => Invalid(NonEmptyChain(EmailIsInUse)).pure[F] //should add him
+    existsByEmail(email).map(x => x.fold(
+      notFound => Valid(true),
+      found => Invalid(NonEmptyChain(EmailIsInUse)) //should add him
       )
     )
 
   def existsMatchingPassword(email:String,password:String): F[Validated[NonEmptyChain[LoginRequestError], String]] =
-    getPasswordByEmail(email).flatMap{
+    getPasswordByEmail(email).map{
       case Some(p) =>
         //println(s"$password | ${PasswordUtils.hash(password)} | $p | ${PasswordUtils.check(password,p)}")
         if PasswordUtils.check(password,p) then
-        Valid(p).pure[F]
-         else Invalid(NonEmptyChain(WrongPassword)).pure[F]
-      case None => Valid(email).pure[F]
+        Valid(p)
+         else Invalid(NonEmptyChain(WrongPassword))
+      case None => Valid(email)
     }
 
   def getPasswordByEmail(email:String): F[Option[String]] =
@@ -150,10 +145,6 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
     .query[String]
     .option
     .transact(transactor)
-
-
-
-
 
   override def all: F[List[AccountDTO]] =
     sql"""
@@ -172,6 +163,34 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
       .transact(transactor)
       .compile
       .toList
+
+  def allRole(accessType: AccessType): F[List[AccountDTO]] =
+    def selectJoinQuery(s: String): F[List[AccountDTO]] =
+      sql"""
+        SELECT
+            a.account_id,
+            a.account_date_created,
+            a.account_email,
+            a.account_username,
+            a.account_birth_date,
+            a.account_height,
+            a.account_weight
+        FROM accounts a
+        INNER JOIN accounts_roles ar ON a.account_id = ar.account_id
+        INNER JOIN roles r ON ar.role_id = r.role_id
+        WHERE r.role_access_type = $s
+      """
+      .query[AccountDTO]
+      .stream
+      .transact(transactor)
+      .compile
+      .toList
+
+    selectJoinQuery(accessType.toString.toLowerCase)
+
+  override def allUsers: F[List[AccountDTO]] = allRole(User)
+
+  override def allAdmins: F[List[AccountDTO]] = allRole(Admin)
 
   override def updateStats(account: AccountStatsUpdateRequest): F[Int] =
         sql"""

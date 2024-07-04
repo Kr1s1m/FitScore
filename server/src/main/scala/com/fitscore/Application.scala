@@ -28,18 +28,22 @@ object Application extends IOApp.Simple:
 
   def makeServer =
     for
-      postgres    <- makePostgres
-      accounts    <- AccountsLive.resource[IO](postgres)
-      posts       <- PostsLive.resource[IO](postgres)
-      replies     <- RepliesLive.resource[IO](postgres)
-      accountsApi <- AccountRoutes.resource[IO](accounts)
+      postgres      <- makePostgres
+      accounts      <- AccountsLive.resource[IO](postgres)
+      accountsRoles <- AccountsRolesLive.resource[IO](postgres)
+      posts         <- PostsLive.resource[IO](postgres)
+      replies       <- RepliesLive.resource[IO](postgres)
+      votes         <- VotesLive.resource[IO](postgres)
+      accountsApi <- AccountRoutes.resource[IO](accounts, accountsRoles)
       postsApi    <- PostRoutes.resource[IO](posts)
       repliesApi  <- ReplyRoutes.resource[IO](replies)
+      votesApi    <- VotesRoutes.resource[IO](votes, posts, replies)
       api         = Router(
         "/" -> (
           accountsApi.routes <+>
           postsApi.routes <+>
-          repliesApi.routes
+          repliesApi.routes <+>
+          votesApi.routes
         )
       ).orNotFound
       server      <- EmberServerBuilder

@@ -8,10 +8,13 @@ import doobie.postgres.implicits.*
 import doobie.util.transactor.Transactor
 import com.fitscore.domain.post.*
 import com.fitscore.domain.post.Post.{dummyDTO, fromDTOtoPost, fromPostToDTO}
+import com.fitscore.domain.enums.VoteType
+import com.fitscore.domain.enums.VoteType.*
 import cats.data.Validated
 import cats.data.Validated.*
 import com.fitscore.errors.PostUpdateRequestError
 import com.fitscore.errors.PostUpdateRequestError.*
+import doobie.Fragment
 
 import java.util as ju
 import doobie.util.ExecutionContexts
@@ -25,6 +28,7 @@ trait Posts[F[_]]: // "algebra"
   def all: F[List[PostDTO]]
   //def allDtos: F[List[Post]]
   def update(post: PostUpdateRequest): F[Validated[PostUpdateRequestError, Int]]
+  def updateVoteBalance(id: UUID, voteType: VoteType): F[Int]
   def delete(id: UUID): F[Int]
 
 class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Posts[F]:
@@ -109,6 +113,23 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
         if createdElapsedMinutes >= 15 then Invalid(PostCreatedTimeElapsed).pure[F] else runUpdateQuery
       case _ => runUpdateQuery
 
+  def updateVoteBalance(id: UUID, voteType: VoteType): F[Int] =
+    def updateQuery(voteMath: String): F[Int] =
+      sql"""
+              UPDATE posts
+              SET
+                SET post_vote_balance = post_vote_balance ${Fragment.const(voteMath)},
+              WHERE post_id = $id
+      """
+      .update
+      .run
+      .transact(transactor)
+    
+    voteType match
+      case Upvote => updateQuery("+ 1")
+      case Downvote => updateQuery("- 1")
+    
+  
   override def delete(id: UUID): F[Int] =
     sql"""
           DELETE

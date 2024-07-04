@@ -8,11 +8,13 @@ import doobie.postgres.implicits.*
 import doobie.util.transactor.Transactor
 import com.fitscore.domain.reply.*
 import com.fitscore.domain.reply.Reply.{dummyDTO, fromDTOtoReply, fromReplyToDTO, insertDummy}
-
 import cats.data.Validated
 import cats.data.Validated.*
+import com.fitscore.domain.enums.VoteType
+import com.fitscore.domain.enums.VoteType.*
 import com.fitscore.errors.ReplyUpdateRequestError
 import com.fitscore.errors.ReplyUpdateRequestError.*
+import doobie.Fragment
 
 import java.util as ju
 import doobie.util.ExecutionContexts
@@ -25,6 +27,7 @@ trait Replies[F[_]]: // "algebra"
   def getById(id: UUID): F[Option[ReplyDTO]]
   def all: F[List[ReplyDTO]]
 //  //def allDtos: F[List[Reply]]
+  def updateVoteBalance(id: UUID, voteType: VoteType): F[Int]
   def update(reply: ReplyUpdateRequest): F[Validated[ReplyUpdateRequestError, Int]]
   def delete(id: UUID): F[Int]
 
@@ -97,6 +100,21 @@ class RepliesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends 
 
   //override def allDtos = all.map(x=>x.map(y=>Reply(y.dateCreated,y.dateUpdated,y.accountId,y.title,y.body)))
 
+  override def updateVoteBalance(id: UUID, voteType: VoteType): F[Int] =
+    def updateQuery(voteMath: String): F[Int] =
+      sql"""
+          UPDATE replies
+          SET reply_vote_balance = reply_vote_balance ${Fragment.const(voteMath)},
+          WHERE reply_id = $id
+        """
+        .update
+        .run
+        .transact(transactor)
+
+    voteType match
+      case Upvote => updateQuery("+ 1")
+      case Downvote => updateQuery("- 1")
+  
   override def update(reply: ReplyUpdateRequest): F[Validated[ReplyUpdateRequestError, Int]] =
     reply.body match
       case "" => Invalid(EmptyReplyBody).pure[F]

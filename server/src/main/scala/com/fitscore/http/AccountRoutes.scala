@@ -17,10 +17,13 @@ import com.fitscore.errors.RegistrationRequestError
 import com.fitscore.errors.RegistrationRequestError.*
 import com.fitscore.utils.Date
 import com.fitscore.validation.AccountValidator
+import com.fitscore.core.AccountsRoles
+import com.fitscore.domain.enums.AccessType
+import com.fitscore.domain.enums.AccessType.*
 
 import java.util.UUID
 
-class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Http4sDsl[F]:
+class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F], accountsRoles: AccountsRoles[F]) extends Http4sDsl[F]:
   private val prefix = "/accounts"
 
   //TODO: maybe move this to a new routes file/class related to new service class Authentication?
@@ -35,12 +38,18 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
             for
                emailNotExists <- accounts.notExistsEmail(account.email)
                usernameNotExists <- accounts.notExistsUsername(account.username)
-               response <- (emailNotExists,usernameNotExists).mapN((x,y)=>true).fold(
-                 e=>BadRequest(s"${e.toString}"),
-                 r=>accounts.create(account).flatMap(Created(_))
+               response <- (emailNotExists, usernameNotExists).mapN((_,_) => true).fold(
+                 errors => BadRequest(s"${errors.toString}"),
+                 _ =>
+                   accounts.create(account).flatMap( accountId =>
+                     for
+                       roleId   <- accountsRoles.spawn(User)
+                       _        <- accountsRoles.assign(accountId, roleId)
+                       r        <- Created(accountId)
+                     yield r
+                   )
                )
             yield response
-
         )
       )
   }
@@ -51,7 +60,7 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
         for
            email <- accounts.existsByEmail(logReq.email)
            matchingPassword <- accounts.existsMatchingPassword(logReq.email,logReq.password)
-           response <- (email,matchingPassword).mapN((x,y)=>x).fold(
+           response <- (email,matchingPassword).mapN((a, _) => a).fold(
              errors => BadRequest(s"${errors.toString}"),
              account =>
                val sessionId = UUID.randomUUID().toString
@@ -101,6 +110,16 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
   //GET /accounts
   private val getAllRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case GET -> Root => accounts.all.flatMap(accounts => Ok(accounts))
+  }
+
+  //GET /accounts/users
+  private val getAllUsers: HttpRoutes[F] = HttpRoutes.of[F] {
+    case GET -> Root / "users" => accounts.allUsers.flatMap(accounts => Ok(accounts))
+  }
+
+  //GET /accounts/admins
+  private val getAllAdmins: HttpRoutes[F] = HttpRoutes.of[F] {
+    case GET -> Root / "admins" => accounts.allAdmins.flatMap(accounts => Ok(accounts))
   }
 
   //PATCH /accounts/update/stats { AccountStats }
@@ -153,7 +172,9 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
         getByIdRoute <+>
         getByEmailRoute <+>
         getByUsernameRoute <+>
-        getAllRoute <+> 
+        getAllRoute <+>
+        getAllUsers <+>
+        getAllAdmins <+>
         updateStatsByIdRoute <+> 
         updateUsernameByIdRoute <+> 
         updateEmailByIdRoute <+> 
@@ -163,5 +184,5 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F]) extends Ht
 
 
 object AccountRoutes:
-  def resource[F[_]: Concurrent](accounts: Accounts[F]): Resource[F, AccountRoutes[F]] =
-    Resource.pure(new AccountRoutes[F](accounts))
+  def resource[F[_]: Concurrent](accounts: Accounts[F], accountsRoles: AccountsRoles[F]): Resource[F, AccountRoutes[F]] =
+    Resource.pure(new AccountRoutes[F](accounts, accountsRoles))
