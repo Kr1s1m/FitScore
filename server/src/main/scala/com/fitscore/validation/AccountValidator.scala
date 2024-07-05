@@ -56,10 +56,10 @@ object AccountValidator:
     ).mapN(AccountStatsUpdate.apply)
   private def validate[E,A](value: A, p: A => Boolean, e: E): Validated[E,A] = Some(value).filter(p).toValidated(e)
   
-  private def validateUsername(username:String): Validated[NonEmptyChain[RegistrationRequestError],String] =
+  def validateUsername(username:String): Validated[NonEmptyChain[RegistrationRequestError],String] =
     validate(username,_.nonEmpty,NonEmptyChain(UsernameIsEmpty))
 
-  private def validateEmail(email: String): Validated[NonEmptyChain[RegistrationRequestError], String] =
+  def validateEmail(email: String): Validated[NonEmptyChain[RegistrationRequestError], String] =
     val regex = """^[a-zA-Z0-9\.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"""
     if regex.r.matches(email) then
       def checkEmpty(e: String): Boolean =
