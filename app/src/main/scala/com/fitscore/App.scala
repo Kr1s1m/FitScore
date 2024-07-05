@@ -4,6 +4,7 @@ package com.fitscore
 import cats.effect.*
 import com.fitscore.DynPage.Profile
 import com.fitscore.domain.account.*
+import com.fitscore.domain.post.{PostFrontEnd, SendPostFrontEnd}
 import io.circe.Json
 import io.circe.generic.auto.*
 import io.circe.parser.*
@@ -26,6 +27,7 @@ enum DynPage:
   case Leader
   case Profile(name:String)
 enum Msg:
+  case OpenPosts
   case LoadLeaderBoard
   case LogOut
   case NoMsg
@@ -56,6 +58,11 @@ enum Msg:
   case CloseProfile
   case TryToGetProfile(email: String)
   case GotProfile(profile: AccountInfo)
+  case LoadPosts(posts:List[PostFrontEnd])
+  case ContentInput(content: String)
+  case TitleInput(title: String)
+  case AddPost
+  case CreatePost
 
 case class Model(
                   accounts: List[AccountPrint] = List(),
@@ -72,13 +79,18 @@ case class Model(
                   height: String="",
                   weight: String="",
                   pages:List[DynPage]=List(DynPage.Home),
-
                   error: String="",
                   storeCookie: Option[LoginResponse] = None,
                   profile: AccountInfo = AccountInfo("","","","","",0,0.0),
                   loadProfile: Boolean = false,
                   otherProfile: AccountInfo = AccountInfo("","","","","",0,0.0),
                   leaderBoardIsOpen :Boolean = false,
+                  posts: List[PostFrontEnd]= List(),
+                  post: SendPostFrontEnd = SendPostFrontEnd("","",""),
+                  postTitle: String ="",
+                  postBody: String ="",
+                  createPost: Boolean = false,
+                  accountId: String = "",
                 )
 
 @JSExportTopLevel("FitScoreApp")
@@ -133,6 +145,19 @@ object App extends TyrianApp[Msg, Model]:
       )
     )
 
+  private def backendCallPosts: Cmd[IO, Msg] =
+      Http.send(
+        Request.get("http://localhost:8080/posts"),
+        Decoder[Msg](
+          resp =>
+            parse(resp.body).flatMap(_.as[List[PostFrontEnd]]) match {
+              case Left(e) => Msg.Error(e.getMessage)
+              case Right(list) => Msg.LoadPosts(list)
+            },
+          err => Msg.Error(err.toString)
+        )
+      )
+
   private def initCall: Cmd[IO, Msg] =
     Http.send(
       Request.get("http://localhost:8080/accounts"),
@@ -145,6 +170,19 @@ object App extends TyrianApp[Msg, Model]:
         err => Msg.Error(err.toString)
       )
     )
+    ///posts/create
+  private def addPostCall(post: SendPostFrontEnd) : Cmd[IO,Msg] =
+   val json = post.asJson.toString
+   Http.send(
+     Request.post("http://localhost:8080/posts/create", tyrian.http.Body.json(json)),
+     Decoder[Msg](
+       resp =>
+         parse(resp.body).flatMap(_.as[String]) match {
+           case Left(e) => Msg.Error(e.toString+s"${resp.body}")
+           case Right(r) => Msg.NoMsg
+         },
+       err => Msg.Error(err.toString)))
+
   override def init(flags: Map[String, String]): (Model, Cmd[IO, Msg]) =
     (Model(), initCall)
   private def birthDate(model: Model):Html[Msg] =
@@ -173,7 +211,7 @@ object App extends TyrianApp[Msg, Model]:
     )
   def quickButtonCheck(p:Boolean): String = if p then "red" else "green"
 
-  def lbButton(attribute:String,msg: Msg = Msg.ToDo): Html[Msg] = button(onToggle(msg),cls:="cool-button active")(attribute) //leaderboarddbuttons
+  def lbButton(attribute:String,msg: Msg = Msg.ToDo): Html[Msg] = button(onClick(msg),cls:="cool-button active")(attribute) //leaderboarddbuttons
   private def leaderboardHtml(competitors:List[(String,String,String)]):Html[Msg] =
     div(cls:="leaderboard")(
     lbButton("Name"),lbButton("Height"),lbButton("Weight"),lbButton("Bodyfat"),
@@ -272,11 +310,51 @@ object App extends TyrianApp[Msg, Model]:
         )
     )
   )
+  def createPostHtlm(model: Model): Html[Msg] =
+    div()(
+      h1("Create a Post"),
+      div(id := "post-form")(
+        input(`type` := "text", placeholder := "Title", value := model.post.title, onInput(e => Msg.TitleInput(e))),
+        br,
+        input(placeholder := "Content", value := model.post.body, onInput(e => Msg.ContentInput(e))),
+        br,
+        br,
+        button(onClick(Msg.AddPost))("Add Post")
+      ),
+      h1("Posts"),
+      div(id := "posts-container")(
+        model.posts.map(post =>
+          div(`class` := "post")(
+            h2(`class` := "post-title")(post.title),
+            p(`class` := "post-content")(post.body),
+            span(`class` := "post-author")("by " + post.accountId)
+          )
+        )
+      )
+    )
+  def postsHtml(model: Model): Html[Msg] =
+      div()(
+        h1("Posts"),
+        div(id := "posts-container")(
+          model.posts.map(
+            post => div(`class` := "post")(
+              h2(`class` := "post-title")(post.title),
+              p(`class` := "post-content")(post.body),
+              span(`class` := "post-author")("by " + post.accountId),
+              lbButton("Reply",Msg.ToDo)
+            )
+          )
+        )
+      )
 
   val testCompetitors = List(("190","63","12.5"),("180","79","15.0"),("160","80","20.0"))
   override def view(model: Model): Html[Msg] =
     div(cls:="leaderboard",id := "Home page")(
+        text(s"${model.accountId}"),
         lbButton("Leaderboard",Msg.LoadLeaderBoard),
+        lbButton("Posts",Msg.OpenPosts),
+        lbButton("Create Post",Msg.CreatePost),
+        if model.createPost then createPostHtlm(model) else div()(),
         button(onClick(Msg.ShowAll))("Show all"),
         button(onClick(Msg.HideAll))("Hide all"), br,
         div(title:= "profile")(model.storeCookie match
@@ -296,11 +374,13 @@ object App extends TyrianApp[Msg, Model]:
         (model.storeCookie match
           case Some(_) => button(cls := "cool-button",onClick(Msg.LogOut))("Logout")
           case _ => button(cls := "cool-button",onClick(Msg.LogInOpen))("Login")),
-        leaderboardHtml(testCompetitors),
+        postsHtml(model),
+        //leaderboardHtml(testCompetitors),
         div(`class` := "contents ")(
           model.accounts.map { account =>
             div(account.toString)
           }
+
     )
     )
   val minPasswordLength = 8
@@ -309,6 +389,7 @@ object App extends TyrianApp[Msg, Model]:
 
   override def update(model: Model): Msg => (Model, Cmd[IO, Msg]) = {
     case Msg.ToDo => (model.copy(error=s"${model.storeCookie}"), Cmd.None)
+
     case Msg.NoMsg =>
       val cookie = entries(dom.window.localStorage).head
       (model.copy(error="",storeCookie = Some(LoginResponse(cookie._1,cookie._2.toString))), Cmd.None)
@@ -343,10 +424,20 @@ object App extends TyrianApp[Msg, Model]:
 
     case Msg.TryToGetProfile(username) => (model.copy(loadProfile = !model.loadProfile),Cmd.None)
 
+
+
     case Msg.LogOut =>
       dom.window.localStorage.clear()//removeItem(storeCookie.sessionId)
       (model.copy(storeCookie=None,loadProfile = false,pages=List(DynPage.Home)),Cmd.None)
 
+    case Msg.TitleInput(title) => (model.copy(postTitle=title),Cmd.None)
+    case Msg.ContentInput(content) => (model.copy(postBody=content),Cmd.None)
+    case Msg.OpenPosts => (model,backendCallPosts)
+    case Msg.LoadPosts(posts) => (model.copy(posts=posts,loadProfile = false),Cmd.None)
+    case Msg.CreatePost =>
+      val storeCookie = model.storeCookie.getOrElse(LoginResponse("",""))
+      (model.copy(createPost = !model.createPost),getAccountByUsername(storeCookie.username))
+    case Msg.AddPost => (model,addPostCall(SendPostFrontEnd(model.profile.id,model.postTitle,model.postBody)))
 
     case Msg.LogIn =>
       val login = LoginRequest(model.email,model.password)

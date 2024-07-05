@@ -1,6 +1,8 @@
 package com.fitscore.domain
 
 
+import com.fitscore.domain.enums.AccessType
+
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDate, LocalDateTime}
 import java.util.UUID
@@ -39,7 +41,7 @@ object account:
                          )
   case class LoginResponse(
                             username: String,
-                            sessionId: String
+                            sessionId: String,
                           )
 
   case class Account(

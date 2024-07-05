@@ -24,6 +24,19 @@ object post:
                    title: String,
                    body: String
                  )
+  case class PostFrontEnd(
+                         id: String,
+                         dateCreated: String,
+                         dateUpdated: String,
+                         accountId: String,
+                         title: String,
+                         body: String,
+                         )
+  case class SendPostFrontEnd(
+                               accountId: String,
+                               title: String,
+                               body: String
+                             )
 
   case class PostDTO( //FOR OUTPUT MOSTLY
                       id: UUID = UUID.randomUUID,
