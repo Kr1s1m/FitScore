@@ -137,25 +137,43 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F], accountsRo
   }
   //PATCH /accounts/update/username { AccountUsername }
   private val updateUsernameByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
-    case request@PATCH -> Root / "update" / "username" =>
-      for
-        accountUsername <- request.as[AccountUsernameUpdateRequest]
-        response <- accounts.updateUsername(accountUsername).flatMap {
-          case 0 => NotFound(s"Username update failed: Not found account id ${accountUsername.id}")
-          case i => Ok(s"$i entries modified from accounts")
-        }
-      yield response
+    case request@PATCH -> Root / "update" / "username" => request.as[AccountUsernameUpdateRequest].flatMap(
+      updReq => AccountValidator.validateUsername(updReq.username).fold(
+        errors => BadRequest(s"$errors"),
+        validUsername => accounts.notExistsUsername(validUsername).flatMap(_.fold(
+          error => BadRequest("Account with that username already exists"),
+          _ => accounts.updateUsername(updReq).flatMap {
+            case 0 => NotFound(s"Username update failed: Not found account id ${updReq.id}")
+            case i => Ok(s"$i entries modified from accounts")
+          }
+        )
+        )
+      )
+    )
   }
   //PATCH /accounts/update/email { AccountEmail }
   private val updateEmailByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
-    case request@PATCH -> Root / "update" / "email" =>
-      for
-        accountEmail <- request.as[AccountEmailUpdateRequest]
-        response <- accounts.updateEmail(accountEmail).flatMap {
-          case 0 => NotFound(s"Username update failed: Not found account id ${accountEmail.id}")
-          case i => Ok(s"$i entries modified from accounts")
-        }
-      yield response
+    case request@PATCH -> Root / "update" / "email" => request.as[AccountEmailUpdateRequest].flatMap(
+      updReq => AccountValidator.validateEmail(updReq.email).fold(
+        errors => BadRequest(s"$errors"),
+        validEmail => accounts.notExistsEmail(validEmail).flatMap(_.fold(
+          error => BadRequest("Account with that email already exists"),
+          _ => accounts.updateEmail(updReq).flatMap {
+            case 0 => NotFound(s"Email update failed: Not found account id ${updReq.id}")
+            case i => Ok(s"$i entries modified from accounts")
+          }
+        )
+        )
+      )
+    )
+
+//      for
+//        accountEmail <- request.as[AccountEmailUpdateRequest]
+//        response <- accounts.updateEmail(accountEmail).flatMap {
+//          case 0 => NotFound(s"Username update failed: Not found account id ${accountEmail.id}")
+//          case i => Ok(s"$i entries modified from accounts")
+//        }
+//      yield response
   }
 
   //DELETE /accounts/{id}
