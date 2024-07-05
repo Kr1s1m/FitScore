@@ -1,5 +1,5 @@
 package com.fitscore.domain.enums
 
 enum VoteType:
-  case Upvote
+  case  Upvote
   case Downvote

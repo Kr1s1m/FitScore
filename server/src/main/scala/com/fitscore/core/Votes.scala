@@ -9,7 +9,7 @@ import com.fitscore.domain.enums.VoteTarget
 import com.fitscore.domain.enums.VoteTarget.*
 import com.fitscore.domain.enums.VoteType
 import com.fitscore.domain.enums.VoteType.*
-import com.fitscore.domain.vote.{Vote, VoteDTO}
+import com.fitscore.domain.vote.{Vote, VoteDTO, VoteJson}
 import doobie.Fragment
 import doobie.implicits.*
 import doobie.postgres.implicits.*
@@ -21,7 +21,7 @@ import doobie.hikari.HikariTransactor
 
 trait Votes[F[_]]: // "algebra"
   def vote(voteDTO: VoteDTO): F[Option[(UUID, VoteType, VoteTarget, Int)]]
-  def getByAccountAndPostOrReplyIds(accountId: UUID, postId: UUID, replyId: Option[UUID]): F[Option[Vote]]
+  def getByAccountAndPostOrReplyIds(accountId: UUID, postId: UUID, replyId: Option[UUID]): F[Option[VoteJson]]
   def delete(id: UUID): F[Int]
 class VotesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Votes[F]:
   override def vote(voteDTO: VoteDTO): F[Option[(UUID, VoteType, VoteTarget, Int)]] =
@@ -51,7 +51,8 @@ class VotesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Vo
       .transact(transactor)
     
     getByAccountAndPostOrReplyIds(voteDTO.accountId, voteDTO.postId, voteDTO.replyId).flatMap{
-      case Some(existingVote) =>
+      case Some(existingVoteJson) =>
+        val existingVote: Vote = existingVoteJson
         (existingVote.voteType, existingVote.voteTarget, voteDTO.voteType, voteDTO.voteTarget) match
           case (exType, exTarget, vType, vTarget) if exType == vType && exTarget == vTarget =>
             delete(existingVote.id).map(_ => Some((existingVote.id, invert(existingVote.voteType), existingVote.voteTarget, 1)))
@@ -65,7 +66,8 @@ class VotesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Vo
     }
 
 
-  override def getByAccountAndPostOrReplyIds(accountId: UUID, postId: UUID, replyId: Option[UUID]): F[Option[Vote]] =
+  override def getByAccountAndPostOrReplyIds(accountId: UUID, postId: UUID, replyId: Option[UUID]): F[Option[VoteJson]] =
+    //println(s"${accountId.toString}|${postId.toString}|${replyId.toString}")
     def selectQuery(aid: UUID, pid: UUID, ridStatement: String) =
       sql"""
              SELECT
@@ -73,18 +75,18 @@ class VotesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Vo
                account_id,
                post_id,
                reply_id,
-               post_vote_type,
-               post_vote_target
+               vote_type,
+               vote_target
              FROM votes
-             WHERE ${Fragment.const(ridStatement)} account_id = $aid, post_id = $pid
+             WHERE  account_id = $aid AND ${Fragment.const(ridStatement)} post_id = $pid
        """
-      .query[Vote]
+      .query[VoteJson]
       .option
       .transact(transactor)
       .map {
         case a@Some(_) => a
         case _ =>
-          println(s"[Internal Error] getVoteInfoByIds: " +
+          println(s"[Internal Error] getByAccountAndPostOrReplyIds: " +
                   s"Not found vote information by (account_id, post_id, Option[reply_id]): " +
                   s"($aid, $pid, $replyId)"
           )
@@ -92,14 +94,14 @@ class VotesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Vo
       }
 
     replyId match
-      case Some(rid) => selectQuery(accountId, postId, s"reply_id = $rid,")
-      case None      => selectQuery(accountId, postId, "")
+      case Some(rid) => selectQuery(accountId, postId, s"reply_id = $rid AND")
+      case None      => selectQuery(accountId, postId, s"")
 
   override def delete(id: UUID): F[Int] =
     sql"""
             DELETE
             FROM votes
-            WHERE votes_id=$id
+            WHERE vote_id=$id
       """
       .update
       .run
@@ -128,16 +130,17 @@ object VotesPlayground extends IOApp.Simple:
     yield transactor
 
   def program(postgres: Transactor[IO]) =
-    val accountid = UUID.fromString("610f04be-8966-4951-8f94-c37a796e49f9")
-    val postid    = UUID.fromString("610f04be-8966-4951-8f94-c37a796e49f9")
-    val replyid   = None //Some(UUID.fromString("2c4e0bd0-61db-4730-8c00-1ee065a6c171"))
+
+    val postid    = UUID.fromString("9cc82243-06e7-4b48-bc3b-c9510815db8d")
+    val accountid = UUID.fromString("5bf69de6-196e-4fe9-8e2e-e8016ccf61eb")
+    val replyid   = None//Some(UUID.fromString("2c4e0bd0-61db-4730-8c00-1ee065a6c171"))
     val votetype  = Upvote //Downvote
     val votetar   = Post //Reply
     val voteDTO   = VoteDTO(accountid, postid, replyid, votetype, votetar)
     for
       votes  <- VotesLive.make[IO](postgres)
       output <- votes.vote(voteDTO)
-      _      <- IO.println(votes)
+       _      <- IO.println(votes)
     yield ()
 
   override def run: IO[Unit] = makePostgres.use(program)

@@ -24,17 +24,39 @@ import com.fitscore.domain.enums.VoteType
 import com.fitscore.domain.enums.VoteType.*
 import com.fitscore.domain.enums.VoteTarget
 import com.fitscore.domain.enums.VoteTarget.*
-import com.fitscore.domain.vote.VoteDTO
+import com.fitscore.domain.vote.{VoteDTO, VoteJson, VoteJsonDTO}
+import io.circe.*
 
 import java.util.UUID
 
+//val genderDecoder: Decoder[AccessType] = Decoder.
+//
+//def encode_AccessType[T <: Enumeration#Value]: Encoder[T] =
+//  (x: T) =>
+//    Json.obj(
+//      ("name", Json.fromString(x.toString)),
+//      ("id", Json.fromInt(x.id))
+//    )
+//  def decode_AccessType[T <: Enumeration#Value](obj: Enumeration): Decoder[T] =
+//       (x: HCursor) =>
+//         for {
+//           name <- x.downField("name").as[String]
+//           id <- x.downField("id").as[Int]
+//        } yield {
+//           val a = obj.withName(name)
+//           val b = obj.apply(id)
+//           assert(a == b)
+//           a.asInstanceOf[T]
+//        }
+//
+//implicit val genderEncoder: Encoder[AccessTarget] = Encoder.encodeEnumeration(Gender)
 class VotesRoutes[F[_]: Concurrent] private (votes: Votes[F], posts: Posts[F], replies: Replies[F]) extends Http4sDsl[F]:
   private val prefix = "/votes"
   
   //POST /votes/vote { voteDTO }
   private val voteRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case request @ POST -> Root / "vote" =>
-      request.as[VoteDTO].flatMap(voteDTO =>
+      request.as[VoteJsonDTO].flatMap(voteDTO =>
         votes.vote(voteDTO).flatMap{
           case Some((id, voteType, voteTarget, balanceChange)) => 
             voteTarget match

@@ -124,14 +124,16 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F], accountsRo
 
   //PATCH /accounts/update/stats { AccountStats }
   private val updateStatsByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
-    case request@PATCH -> Root / "update" / "stats" =>
-      for
-        accountStats <- request.as[AccountStatsUpdateRequest]
-        response <- accounts.updateStats(accountStats).flatMap {
+    case request@PATCH -> Root / "update" / "stats" => request.as[AccountStatsUpdateRequest].flatMap(
+      updReq => AccountValidator.validateUpdateStats(updReq).fold(
+        errors => BadRequest(s"${errors.toString}"),
+        accountStats => accounts.updateStats(accountStats).flatMap {
           case 0 => NotFound(s"Stats update failed: Not found account id ${accountStats.id}")
           case i => Ok(s"$i entries modified from accounts")
         }
-      yield response
+      )
+    )
+
   }
   //PATCH /accounts/update/username { AccountUsername }
   private val updateUsernameByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {

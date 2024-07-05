@@ -7,7 +7,7 @@ import cats.Semigroup
 import cats.data.{NonEmptyChain, Validated}
 import cats.data.Validated.*
 import cats.syntax.all.*
-import com.fitscore.domain.account.{Account, RegistrationRequest}
+import com.fitscore.domain.account.{Account, AccountStatsUpdate, AccountStatsUpdateRequest, RegistrationRequest}
 import com.fitscore.errors.RegistrationRequestError
 import com.fitscore.errors.RegistrationRequestError.*
 import com.fitscore.errors.DateError
@@ -18,6 +18,7 @@ import cats.Invariant.catsApplicativeForArrow
 import cats.effect.{IO, IOApp}
 import com.fitscore.utils.Date.toIsoString
 import com.fitscore.validation.AccountValidator.validateBirthDate
+
 import java.time.{LocalDate, LocalDateTime}
 
 given Semigroup[RegistrationRequestError] with
@@ -39,14 +40,20 @@ object AccountValidator:
 
   def register(regReq: RegistrationRequest): Validated[NonEmptyChain[RegistrationRequestError], Account] =
     (
-      AccountValidator.validateEmail(regReq.email),
-      AccountValidator.validateUsername(regReq.username),
-      AccountValidator.validatePassword(regReq.password, regReq.passwordConfirmation),
-      AccountValidator.validateBirthDate(regReq.birthYear, regReq.birthMonth, regReq.birthDay),
-      AccountValidator.validateHeight(regReq.height),
-      AccountValidator.validateWeight(regReq.weight)
+      validateEmail(regReq.email),
+      validateUsername(regReq.username),
+      validatePassword(regReq.password, regReq.passwordConfirmation),
+      validateBirthDate(regReq.birthYear, regReq.birthMonth, regReq.birthDay),
+      validateHeight(regReq.height),
+      validateWeight(regReq.weight)
     ).mapN(Account.apply)
-
+  def validateUpdateStats(updReq: AccountStatsUpdateRequest): Validated[NonEmptyChain[RegistrationRequestError], AccountStatsUpdate] =
+    (
+      Valid(updReq.id),
+      validateBirthDate(updReq.birthYear,updReq.birthMonth,updReq.birthDay),
+      validateHeight(updReq.height),
+      validateWeight(updReq.weight)
+    ).mapN(AccountStatsUpdate.apply)
   private def validate[E,A](value: A, p: A => Boolean, e: E): Validated[E,A] = Some(value).filter(p).toValidated(e)
   
   private def validateUsername(username:String): Validated[NonEmptyChain[RegistrationRequestError],String] =

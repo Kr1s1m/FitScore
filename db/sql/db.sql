@@ -16,7 +16,7 @@ create table posts(
     post_date_created timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     post_date_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     post_title character varying(100),
-    post_body text
+    post_body text,
     post_vote_balance integer NOT NULL DEFAULT 0
 );
 
@@ -27,7 +27,7 @@ create table replies(
     reply_parent_id uuid REFERENCES replies(reply_id) ON DELETE CASCADE,
     reply_date_created timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     reply_date_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    reply_body text
+    reply_body text,
     reply_vote_balance integer NOT NULL DEFAULT 0
 );
 
