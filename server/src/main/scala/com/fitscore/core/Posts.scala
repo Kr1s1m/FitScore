@@ -56,7 +56,8 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
             post_date_updated,
             account_id,
             post_title,
-            post_body
+            post_body,
+            post_balance
           FROM posts
           WHERE post_id=$id
     """
@@ -76,7 +77,8 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
           post_date_updated,
           account_id,
           post_title,
-          post_body
+          post_body,
+          post_vote_balance
         FROM posts
     """
     .query[PostDTO]
@@ -100,7 +102,7 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
     def updateQuery(voteMath: String): F[Int] =
       sql"""
           UPDATE posts
-          SET post_vote_balance = post_vote_balance ${Fragment.const(voteMath)},
+          SET post_vote_balance = post_vote_balance ${Fragment.const(voteMath)}
           WHERE post_id = $id
         """
         .update

@@ -31,6 +31,7 @@ object post:
                          accountId: String,
                          title: String,
                          body: String,
+                         balance: Long
                          )
   case class SendPostFrontEnd(
                                accountId: String,
@@ -44,7 +45,8 @@ object post:
                       dateUpdated: LocalDateTime = LocalDateTime.now,
                       accountId: UUID = UUID.randomUUID,
                       title: String = "",
-                      body: String = ""
+                      body: String = "" ,
+                      balance: Long = 0,
                     )
   case class PostUpdateRequest(
                               id: UUID,

@@ -93,7 +93,7 @@ case class Model(
                   loadProfile: Boolean = false,
                   otherProfile: AccountInfo = AccountInfo("","","","","",0,0.0),
                   leaderBoardIsOpen :Boolean = false,
-                  posts: List[PostFrontEnd]= List(),
+                  posts: List[PostFrontEnd] = Nil,
                   post: SendPostFrontEnd = SendPostFrontEnd("","",""),
                   postTitle: String ="",
                   postBody: String ="",
@@ -126,7 +126,7 @@ object App extends TyrianApp[Msg, Model]:
       resp =>
         parse(resp.body) match {
           case Left(e)     => Msg.Error(e.getMessage+s"${resp.toString}")
-          case Right(r) => Msg.NoMsg
+          case Right(r) => Msg.LogIn
         },
       err => Msg.Error(err.toString)))
 
@@ -167,14 +167,14 @@ object App extends TyrianApp[Msg, Model]:
         )
       )
 
-  private def initCall: Cmd[IO, Msg] =
+  private def initCall(username:String): Cmd[IO, Msg] =
     Http.send(
-      Request.get("http://localhost:8080/accounts"),
+      Request.get(s"http://localhost:8080/accounts/username/$username"),
       Decoder[Msg](
         resp =>
-          parse(resp.body).flatMap(_.as[List[AccountPrint]]) match {
-            case Left(e) => Msg.Error(e.getMessage)
-            case Right(list) => Msg.NoMsg
+          parse(resp.body).flatMap(_.as[AccountInfo]) match {
+            case Left(e) => Msg.Error(s"${resp.body}")//+e.getMessage)
+            case Right(acc) => Msg.NoMsg
           },
         err => Msg.Error(err.toString)
       )
@@ -203,9 +203,21 @@ object App extends TyrianApp[Msg, Model]:
             case Right(r) => Msg.NoMsg
           },
         err => Msg.Error(err.toString)))
-
+//  private def getPostKarma(post: PostFrontEnd): Cmd[IO,Msg] =
+//    Http.send(
+//      Request.get(s"http://localhost:8080/posts/karma/${post.id}"),
+//      Decoder[Msg](
+//        resp =>
+//          parse(resp.body).flatMap(_.as[Long]) match {
+//            case Left(e) => Msg.Error(s"${resp.body}")//+e.getMessage)
+//            case Right(karma) => Msg.GotKarma(post,karma)
+//          },
+//        err => Msg.Error(err.toString)
+//      )
+//    )
+//  private def getPostsKarma(posts:List[PostFrontEnd]): Cmd[IO,Msg] = ???
   override def init(flags: Map[String, String]): (Model, Cmd[IO, Msg]) =
-    (Model(), initCall)
+    (Model(), initCall(dom.window.localStorage.key(0)))
   private def birthDate(model: Model):Html[Msg] =
     div(cls := "birthdate-container")(
       input(
@@ -346,16 +358,6 @@ object App extends TyrianApp[Msg, Model]:
         br,
         br,
         button(onClick(Msg.AddPost))("Add Post")
-      ),
-      h1("Posts"),
-      div(id := "posts-container")(
-        model.posts.map(post =>
-          div(`class` := "post")(
-            h2(`class` := "post-title")(post.title),
-            p(`class` := "post-content")(post.body),
-            span(`class` := "post-author")("by " + post.accountId)
-          )
-        )
       )
     )
   def calculatePostKarma(post:PostFrontEnd): Int = 0
@@ -367,8 +369,10 @@ object App extends TyrianApp[Msg, Model]:
             post => div(`class` := "post")(
               h2(`class` := "post-title")(post.title),
               p(`class` := "post-content")(post.body),
+              span(`class` := "post-author")(post.dateCreated),
+              span(`class` := "post-author")(post.dateCreated),
               span(`class` := "post-author")("by " + post.accountId),
-              lbButton("/\\",Msg.Upvote(post.id,Post),"green active"),lbButton("\\/",Msg.Upvote(post.id,Post),"red active"),p(style := "color: blue;")(s"${calculatePostKarma(post)}")
+              lbButton("/\\",Msg.Upvote(post.id,Post),"green active"),text(post.balance.toString),lbButton("\\/",Msg.Downvote(post.id,Post),"red active"),
 
             )
           )
@@ -397,11 +401,10 @@ object App extends TyrianApp[Msg, Model]:
         text(model.error),
         registerHtml(model),
         loginHtml(model),
-        button(cls := "cool-button",onClick(Msg.Open))("Register"),
-        button(cls := "cool-button",onClick(Msg.ToDo))("Check Cookie"),
+        button(cls := "cool-button",onClick(Msg.ToDo))("Errors"),
         (model.storeCookie match
-          case Some(_) => button(cls := "cool-button",onClick(Msg.LogOut))("Logout")
-          case _ => button(cls := "cool-button",onClick(Msg.LogInOpen))("Login")),
+          case Some(_) => div()(button(cls := "cool-button",onClick(Msg.LogOut))("Logout"),button(cls := "green",onClick(Msg.Open))("Register"))
+          case _ => div()(button(cls := "cool-button",onClick(Msg.LogInOpen))("Login"),button(cls := "cool-button",onClick(Msg.Open))("Register"))),
         postsHtml(model),
         //leaderboardHtml(testCompetitors),
         div(`class` := "contents ")(
@@ -439,11 +442,11 @@ object App extends TyrianApp[Msg, Model]:
     case Msg.Close => (model.copy(pages=List(DynPage.Home),password=""),Cmd.None)
     case Msg.Open => (model.copy(pages=List(DynPage.Register),password=""),Cmd.None)
 
-    case Msg.GotProfile(acc) => (model.copy(profile=acc),Cmd.None)
+    case Msg.GotProfile(acc) => (model.copy(profile=acc,loadProfile=true),Cmd.None)
 
     case Msg.StoreCookie(r) =>
       dom.window.localStorage.setItem(r.username,r.sessionId)
-      (model.copy(storeCookie=Some(r),pages=List(DynPage.Home)),Cmd.None)
+      (model.copy(storeCookie=Some(r),pages=List(DynPage.Home)),getAccountByUsername(r.username))
 
     case Msg.LoadProfile =>
       val storeCookie = model.storeCookie.getOrElse(LoginResponse("",""))
@@ -455,7 +458,9 @@ object App extends TyrianApp[Msg, Model]:
     case Msg.Upvote(postId,Post) =>
       val voteBuilder = FrontEndVote(model.profile.id,postId,None,Upvote.toString.toLowerCase,Post.toString.toLowerCase)
       (model,castVote(voteBuilder))
-    case Msg.Downvote(id,Post) => (model,Cmd.None)
+    case Msg.Downvote(postId,Post) =>
+      val voteBuilder = FrontEndVote(model.profile.id,postId,None,Downvote.toString.toLowerCase,Post.toString.toLowerCase)
+      (model,castVote(voteBuilder))
     case Msg.Upvote(id,Reply) => (model,Cmd.None)
     case Msg.Downvote(id,Reply) => (model,Cmd.None)
 
@@ -473,11 +478,10 @@ object App extends TyrianApp[Msg, Model]:
       (model.copy(createPost = !model.createPost),getAccountByUsername(storeCookie.username))
     case Msg.AddPost => (model,addPostCall(SendPostFrontEnd(model.profile.id,model.postTitle,model.postBody)))
 
-
     case Msg.LogIn =>
       val login = LoginRequest(model.email,model.password)
       model.storeCookie match
-        case Some(_)=>(model.copy(pages=List(DynPage.Home),profile=AccountInfo("","",model.email,model.username,model.birthDay,model.height.toShort,model.weight.toDouble)),backendCallLogin(login))
+        case Some(_)=>(model.copy(pages=List(DynPage.Home)),backendCallLogin(login))
         case None => (model,backendCallLogin(login))
 
     case Msg.LogInOpen => (model.copy(pages=List(DynPage.Login)),Cmd.None)
