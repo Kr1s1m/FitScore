@@ -26,13 +26,13 @@ import java.util.UUID
 class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F], accountsRoles: AccountsRoles[F]) extends Http4sDsl[F]:
   private val prefix = "/accounts"
 
-  //TODO: maybe move this to a new routes file/class related to new service class Authentication?
+  //TODO: move this to a new routes file/class related to new service class Authentication?
   //POST /accounts/register { registrationRequest }
   private val registerAccountRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case request @ POST -> Root / "register" =>
       request.as[RegistrationRequest].flatMap( regReq =>
         AccountValidator.register(regReq).fold(
-          //TODO: errors should be chained errors from the validation and turned into strings with some functionality showErrors?
+          //TODO: chained errors from the validation should be turned into strings with some functionality showErrors?
           errors => BadRequest(s"${errors.toString}"),
           account =>
             for
@@ -54,6 +54,7 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F], accountsRo
       )
   }
 
+  //TODO: move this to a new routes file/class Authentication routes related to new core class Authentication
   private val loginRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case request@POST -> Root / "login" =>
       request.as[LoginRequest].flatMap(logReq =>
@@ -166,14 +167,6 @@ class AccountRoutes[F[_]: Concurrent] private (accounts: Accounts[F], accountsRo
         )
       )
     )
-
-//      for
-//        accountEmail <- request.as[AccountEmailUpdateRequest]
-//        response <- accounts.updateEmail(accountEmail).flatMap {
-//          case 0 => NotFound(s"Username update failed: Not found account id ${accountEmail.id}")
-//          case i => Ok(s"$i entries modified from accounts")
-//        }
-//      yield response
   }
 
   //DELETE /accounts/{id}
