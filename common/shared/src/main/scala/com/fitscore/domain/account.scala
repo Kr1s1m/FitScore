@@ -83,10 +83,19 @@ object account:
                        )
   case class AccountStatsUpdateRequest(
                                  id: UUID,
-                                 birthDate: String,
-                                 height: Short,
-                                 weight: Double
+                                 birthDay: String,
+                                 birthMonth: String,
+                                 birthYear: String,
+                                 height: String,
+                                 weight: String
                                )
+  case class AccountStatsUpdate(
+                                id:UUID,
+                                birthDate: LocalDate,
+                                height: Short,
+                                weight: Double
+                               )
+
   case class AccountUsernameUpdateRequest(
                                  id: UUID,
                                  username: String

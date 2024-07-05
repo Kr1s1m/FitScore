@@ -23,6 +23,9 @@ import com.fitscore.errors.LoginRequestError.*
 import com.fitscore.utils.PasswordUtils
 import com.fitscore.domain.enums.AccessType
 import com.fitscore.domain.enums.AccessType.*
+import com.fitscore.validation.AccountValidator.validateUpdateStats
+
+import java.time.LocalDate
 
 trait Accounts[F[_]]: // "algebra"
   def create(account: Account): F[UUID]
@@ -41,7 +44,7 @@ trait Accounts[F[_]]: // "algebra"
   def allRole(accessType: AccessType): F[List[AccountDTO]]
   def allUsers: F[List[AccountDTO]]
   def allAdmins: F[List[AccountDTO]]
-  def updateStats(updateRequest: AccountStatsUpdateRequest): F[Int]
+  def updateStats(updateRequest: AccountStatsUpdate): F[Int]
   def updateUsername(updateRequest: AccountUsernameUpdateRequest): F[Int]
   def updateEmail(updateRequest: AccountEmailUpdateRequest): F[Int]
   def delete(id: UUID): F[Int]
@@ -192,7 +195,7 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
 
   override def allAdmins: F[List[AccountDTO]] = allRole(Admin)
 
-  override def updateStats(account: AccountStatsUpdateRequest): F[Int] =
+  override def updateStats(account: AccountStatsUpdate): F[Int] =
         sql"""
              UPDATE accounts
              SET
@@ -204,6 +207,7 @@ class AccountsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends
           .update
           .run
           .transact(transactor)
+
 
   override def updateUsername(account: AccountUsernameUpdateRequest): F[Int] =
     sql"""

@@ -5,6 +5,7 @@ import cats.effect.*
 import com.fitscore.DynPage.Profile
 import com.fitscore.domain.account.*
 import com.fitscore.domain.post.{PostFrontEnd, SendPostFrontEnd}
+import com.fitscore.domain.vote.FrontEndVote
 import io.circe.Json
 import io.circe.generic.auto.*
 import io.circe.parser.*
@@ -18,6 +19,11 @@ import scala.scalajs.js.annotation.*
 import io.circe.syntax.*
 
 import scala.scalajs.js.Object.entries
+import com.fitscore.domain.enums.VoteType
+import com.fitscore.domain.enums.VoteType.*
+import com.fitscore.domain.enums.VoteTarget
+import com.fitscore.domain.enums.VoteTarget.*
+
 
 
 enum DynPage:
@@ -27,6 +33,8 @@ enum DynPage:
   case Leader
   case Profile(name:String)
 enum Msg:
+  case Upvote(postId:String,target:VoteTarget)
+  case Downvote(postId:String,target:VoteTarget)
   case OpenPosts
   case LoadLeaderBoard
   case LogOut
@@ -91,6 +99,7 @@ case class Model(
                   postBody: String ="",
                   createPost: Boolean = false,
                   accountId: String = "",
+                  vote : FrontEndVote = FrontEndVote("","",None,"","")
                 )
 
 @JSExportTopLevel("FitScoreApp")
@@ -183,6 +192,18 @@ object App extends TyrianApp[Msg, Model]:
          },
        err => Msg.Error(err.toString)))
 
+  private def castVote(vote: FrontEndVote): Cmd[IO, Msg] =
+    val json = vote.asJson.toString
+    Http.send(
+      Request.post("http://localhost:8080/votes/vote", tyrian.http.Body.json(json)),
+      Decoder[Msg](
+        resp =>
+          parse(resp.body).flatMap(_.as[String]) match {
+            case Left(e) => Msg.Error(e.toString + s"${resp.body}")
+            case Right(r) => Msg.NoMsg
+          },
+        err => Msg.Error(err.toString)))
+
   override def init(flags: Map[String, String]): (Model, Cmd[IO, Msg]) =
     (Model(), initCall)
   private def birthDate(model: Model):Html[Msg] =
@@ -211,7 +232,7 @@ object App extends TyrianApp[Msg, Model]:
     )
   def quickButtonCheck(p:Boolean): String = if p then "red" else "green"
 
-  def lbButton(attribute:String,msg: Msg = Msg.ToDo): Html[Msg] = button(onClick(msg),cls:="cool-button active")(attribute) //leaderboarddbuttons
+  def lbButton(attribute:String,msg: Msg = Msg.ToDo,style:String="cool-button"): Html[Msg] = button(onClick(msg),cls:=s"${style}")(attribute) //leaderboarddbuttons
   private def leaderboardHtml(competitors:List[(String,String,String)]):Html[Msg] =
     div(cls:="leaderboard")(
     lbButton("Name"),lbButton("Height"),lbButton("Weight"),lbButton("Bodyfat"),
@@ -294,6 +315,11 @@ object App extends TyrianApp[Msg, Model]:
         span(model.profile.username)
       ),
         div(
+        cls := "profile-field")(
+        label(s"Id: "),
+        span(s"${model.profile.id}")
+        ),
+        div(
           cls := "profile-field")(
           label(s"Email: "),
           span(s"${model.email}")
@@ -332,6 +358,7 @@ object App extends TyrianApp[Msg, Model]:
         )
       )
     )
+  def calculatePostKarma(post:PostFrontEnd): Int = 0
   def postsHtml(model: Model): Html[Msg] =
       div()(
         h1("Posts"),
@@ -341,7 +368,8 @@ object App extends TyrianApp[Msg, Model]:
               h2(`class` := "post-title")(post.title),
               p(`class` := "post-content")(post.body),
               span(`class` := "post-author")("by " + post.accountId),
-              lbButton("Reply",Msg.ToDo)
+              lbButton("/\\",Msg.Upvote(post.id,Post),"green active"),lbButton("\\/",Msg.Upvote(post.id,Post),"red active"),p(style := "color: blue;")(s"${calculatePostKarma(post)}")
+
             )
           )
         )
@@ -424,11 +452,17 @@ object App extends TyrianApp[Msg, Model]:
 
     case Msg.TryToGetProfile(username) => (model.copy(loadProfile = !model.loadProfile),Cmd.None)
 
-
+    case Msg.Upvote(postId,Post) =>
+      val voteBuilder = FrontEndVote(model.profile.id,postId,None,Upvote.toString.toLowerCase,Post.toString.toLowerCase)
+      (model,castVote(voteBuilder))
+    case Msg.Downvote(id,Post) => (model,Cmd.None)
+    case Msg.Upvote(id,Reply) => (model,Cmd.None)
+    case Msg.Downvote(id,Reply) => (model,Cmd.None)
 
     case Msg.LogOut =>
       dom.window.localStorage.clear()//removeItem(storeCookie.sessionId)
       (model.copy(storeCookie=None,loadProfile = false,pages=List(DynPage.Home)),Cmd.None)
+
 
     case Msg.TitleInput(title) => (model.copy(postTitle=title),Cmd.None)
     case Msg.ContentInput(content) => (model.copy(postBody=content),Cmd.None)
@@ -438,6 +472,7 @@ object App extends TyrianApp[Msg, Model]:
       val storeCookie = model.storeCookie.getOrElse(LoginResponse("",""))
       (model.copy(createPost = !model.createPost),getAccountByUsername(storeCookie.username))
     case Msg.AddPost => (model,addPostCall(SendPostFrontEnd(model.profile.id,model.postTitle,model.postBody)))
+
 
     case Msg.LogIn =>
       val login = LoginRequest(model.email,model.password)
