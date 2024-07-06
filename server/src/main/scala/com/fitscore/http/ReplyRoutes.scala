@@ -38,6 +38,11 @@ class ReplyRoutes[F[_]: Concurrent] private (replies: Replies[F]) extends Http4s
     }
   }
 
+  //GET /replies/{id}
+  private val getByPostIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
+    case GET -> Root / "postId" / UUIDVar(postId) => replies.getByPostId(postId).flatMap(Ok(_))
+  }
+
   //GET /replies
   private val getAllRoute: HttpRoutes[F] = HttpRoutes.of[F] {
     case GET -> Root => replies.all.flatMap(replies => Ok(replies))
@@ -74,6 +79,7 @@ class ReplyRoutes[F[_]: Concurrent] private (replies: Replies[F]) extends Http4s
     prefix -> (
       createReplyRoute <+>
       getByIdRoute <+>
+      getByPostIdRoute <+>
       getAllRoute <+>
       getReplyKarmaByAccountIdRoute <+>
       updateByIdRoute <+>

@@ -33,7 +33,8 @@ object reply:
                        parentId: Option[UUID] = Some(UUID.randomUUID),
                        dateCreated: LocalDateTime = LocalDateTime.now,
                        dateUpdated: LocalDateTime = LocalDateTime.now,
-                       body: String = ""
+                       body: String = "" ,
+                       balance: Int = 0
                     )
   case class ReplyUpdateRequest(
                                 id: UUID,
@@ -41,22 +42,23 @@ object reply:
                               )
 
   case class ReplyFrontEnd(
-                           id: UUID = UUID.randomUUID,
-                           accountId: UUID = UUID.randomUUID,
+                           id: String = "",
+                           accountId: String = "",
                            accountUsername:String ="",
-                           postId: UUID = UUID.randomUUID,
-                           parentId: Option[UUID] = Some(UUID.randomUUID),
-                           dateCreated: LocalDateTime = LocalDateTime.now,
-                           dateUpdated: LocalDateTime = LocalDateTime.now,
-                           body: String = ""
+                           postId: String = "",
+                           parentId: Option[String] = None,
+                           dateCreated: String = "",
+                           dateUpdated: String = "",
+                           body: String = "",
+                           balance: Long = 0
                          )
 
   case class SendReplyFrontEnd(
-                               accountId: UUID,
-                               accountUsername:String,
-                               postId: UUID,
-                               parentId: Option[String],
-                               body: String
+                                accountId: String = "",
+                                accountUsername:String ="",
+                                postId: String = "",
+                                parentId: Option[String] = None,
+                                body: String = ""
                              )
 
 //  object Reply:

@@ -23,6 +23,7 @@ import com.fitscore.domain.enums.VoteType
 import com.fitscore.domain.enums.VoteType.*
 import com.fitscore.domain.enums.VoteTarget
 import com.fitscore.domain.enums.VoteTarget.*
+import com.fitscore.domain.reply.{ReplyFrontEnd, SendReplyFrontEnd}
 
 
 
@@ -33,8 +34,12 @@ enum DynPage:
   case Leader
   case Profile(name:String)
 enum Msg:
-  case Upvote(postId:String,target:VoteTarget)
-  case Downvote(postId:String,target:VoteTarget)
+  case LoadReplies(replies: List[ReplyFrontEnd])
+  case AddReply
+  case ContentInputReply(content:String)
+  case CreateReply(parentId:Option[String],postId:String)
+  case Upvote(postId:String,target:VoteTarget,replyId:String="")
+  case Downvote(postId:String,target:VoteTarget,replyId:String="")
   case OpenPosts
   case LoadLeaderBoard
   case LogOut
@@ -101,7 +106,13 @@ case class Model(
                   createPost: Boolean = false,
                   accountId: String = "",
                   vote : FrontEndVote = FrontEndVote("","",None,"",""),
-                  currentPost: Option[PostFrontEnd] = None
+                  currentPost: Option[PostFrontEnd] = None,
+                  currentPostReplies: List[ReplyFrontEnd] = Nil,
+
+                  replyBody: String = "",
+                  createReply: Boolean = false,
+                  replyParent: Option[String] = None,
+                  replyPost: String = "",
                 )
 
 @JSExportTopLevel("FitScoreApp")
@@ -181,6 +192,18 @@ object App extends TyrianApp[Msg, Model]:
         err => Msg.Error(err.toString)
       )
     )
+
+  private def addReplyCall(reply: SendReplyFrontEnd): Cmd[IO, Msg] =
+    val json = reply.asJson.toString
+    Http.send(
+      Request.post("http://localhost:8080/replies/create", tyrian.http.Body.json(json)),
+      Decoder[Msg](
+        resp =>
+          parse(resp.body).flatMap(_.as[String]) match {
+            case Left(e) => Msg.Error(e.toString + s"${resp.body}")
+            case Right(r) => Msg.NoMsg
+          },
+        err => Msg.Error(err.toString)))
     ///posts/create
   private def addPostCall(post: SendPostFrontEnd) : Cmd[IO,Msg] =
    val json = post.asJson.toString
@@ -218,6 +241,19 @@ object App extends TyrianApp[Msg, Model]:
 //      )
 //    )
 //  private def getPostsKarma(posts:List[PostFrontEnd]): Cmd[IO,Msg] = ???
+  private def getRepliesByPost(postId: String): Cmd[IO, Msg] =
+    Http.send(
+      Request.get(s"http://localhost:8080/replies/postId/$postId"),
+      Decoder[Msg](
+        resp =>
+          parse(resp.body).flatMap(_.as[List[ReplyFrontEnd]]) match {
+            case Left(e) => Msg.Error(s"${resp.body}") //+e.getMessage)
+            case Right(replies) => Msg.LoadReplies(replies)
+          },
+        err => Msg.Error(err.toString)
+      )
+    )
+
   override def init(flags: Map[String, String]): (Model, Cmd[IO, Msg]) =
     (Model(), initCall(dom.window.localStorage.key(0)))
   private def birthDate(model: Model):Html[Msg] =
@@ -333,7 +369,11 @@ object App extends TyrianApp[Msg, Model]:
                   span(`class` := "post-author")(post.dateCreated),
                   span(`class` := "post-author")("by " + post.accountUsername),
                   lbButton("/\\",Msg.Upvote(post.id,Post),"green active"),text(post.balance.toString),lbButton("\\/",Msg.Downvote(post.id,Post),"red active"),br,
-                  lbButton("+",Msg.NoMsg)
+                  lbButton("+",Msg.CreateReply(None,post.id)),
+                  if model.createReply then createReplyHtlm(model) else div()(),
+                  div()(
+                    model.currentPostReplies.map(x=>replyHtml(x,model))
+                  ),
               )
             )
           )
@@ -384,6 +424,17 @@ object App extends TyrianApp[Msg, Model]:
         button(onClick(Msg.AddPost))("Add Post")
       )
     )
+
+  def createReplyHtlm(model: Model): Html[Msg] =
+      div()(
+        h1("Reply:"),
+        div(id := "post-form")(
+          input(placeholder := "Content", value := model.replyBody, onInput(e => Msg.ContentInputReply(e))),
+          br,
+          button(onClick(Msg.AddReply))("Add Reply")
+        )
+      )
+
   def calculatePostKarma(post:PostFrontEnd): Int = 0
   def postsHtml(model: Model): Html[Msg] =
       div()(
@@ -403,6 +454,18 @@ object App extends TyrianApp[Msg, Model]:
           )
         )
       )
+  def replyHtml(reply:ReplyFrontEnd,model:Model): Html[Msg] =
+    model.currentPost match
+      case None => div()()
+      case Some(currPost) => 
+        div(`class` := "post")(
+          p(`class` := "post-content")(reply.body),
+          span(`class` := "post-author")(reply.dateCreated),
+          span(`class` := "post-author")(reply.dateUpdated),
+          span(`class` := "post-author")("by " + reply.accountUsername),
+          lbButton("/\\",Msg.Upvote(currPost.id,Reply,reply.id),"green"),text(reply.balance.toString),lbButton("\\/",Msg.Downvote(currPost.id,Reply,reply.id),"red"),br,
+          lbButton("+",Msg.AddReply)
+          )
 
   val testCompetitors = List(("190","63","12.5"),("180","79","15.0"),("160","80","20.0"))
   override def view(model: Model): Html[Msg] =
@@ -481,14 +544,18 @@ object App extends TyrianApp[Msg, Model]:
 
     case Msg.TryToGetProfile(username) => (model.copy(loadProfile = !model.loadProfile),Cmd.None)
 
-    case Msg.Upvote(postId,Post) =>
+    case Msg.Upvote(postId,Post,_) =>
       val voteBuilder = FrontEndVote(model.profile.id,postId,None,Upvote.toString.toLowerCase,Post.toString.toLowerCase)
       (model,castVote(voteBuilder))
-    case Msg.Downvote(postId,Post) =>
+    case Msg.Downvote(postId,Post,_) =>
       val voteBuilder = FrontEndVote(model.profile.id,postId,None,Downvote.toString.toLowerCase,Post.toString.toLowerCase)
       (model,castVote(voteBuilder))
-    case Msg.Upvote(id,Reply) => (model,Cmd.None)
-    case Msg.Downvote(id,Reply) => (model,Cmd.None)
+    case Msg.Upvote(postId,Reply,id) =>
+      val voteBuilder = FrontEndVote(model.profile.id,postId,Some(id),Upvote.toString.toLowerCase,Reply.toString.toLowerCase)
+      (model,castVote(voteBuilder))
+    case Msg.Downvote(postId,Reply,id) =>
+      val voteBuilder = FrontEndVote(model.profile.id,postId,Some(id),Downvote.toString.toLowerCase,Reply.toString.toLowerCase)
+      (model,castVote(voteBuilder))
 
     case Msg.LogOut =>
       dom.window.localStorage.clear()//removeItem(storeCookie.sessionId)
@@ -503,7 +570,16 @@ object App extends TyrianApp[Msg, Model]:
       val storeCookie = model.storeCookie.getOrElse(LoginResponse("",""))
       (model.copy(createPost = !model.createPost),getAccountByUsername(storeCookie.username))
     case Msg.AddPost => (model,addPostCall(SendPostFrontEnd(model.profile.id,model.profile.username,model.postTitle,model.postBody)))
-    case Msg.FullPost(post:PostFrontEnd) => (model.copy(currentPost = Some(post)),Cmd.None)
+    case Msg.FullPost(post:PostFrontEnd) => (model.copy(currentPost = Some(post)),getRepliesByPost(post.id))
+
+    case Msg.ContentInputReply(content) => (model.copy(replyBody = content),Cmd.None)
+    case Msg.AddReply => (model,addReplyCall(SendReplyFrontEnd(model.profile.id,model.profile.username,model.replyPost,model.replyParent,model.replyBody)))
+    case Msg.CreateReply(parent,post) =>
+      val storeCookie = model.storeCookie.getOrElse(LoginResponse("",""))
+      (model.copy(createReply = !model.createReply,replyParent = parent,replyPost= post),getAccountByUsername(storeCookie.username))
+
+    case Msg.LoadReplies(replies) => (model.copy(currentPostReplies = replies),Cmd.None)
+
 
     case Msg.LogIn =>
       val login = LoginRequest(model.email,model.password)
