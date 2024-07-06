@@ -19,6 +19,7 @@ object reply:
                    //dateCreated: LocalDateTime = LocalDateTime.now,
                    //dateUpdated: LocalDateTime = LocalDateTime.now,
                    accountId: UUID,
+                   accountUsername:String,
                    postId: UUID,
                    parentId: Option[UUID],
                    body: String
@@ -27,6 +28,7 @@ object reply:
   case class ReplyDTO( //FOR OUTPUT MOSTLY
                        id: UUID = UUID.randomUUID,
                        accountId: UUID = UUID.randomUUID,
+                       accountUsername:String ="",
                        postId: UUID = UUID.randomUUID,
                        parentId: Option[UUID] = Some(UUID.randomUUID),
                        dateCreated: LocalDateTime = LocalDateTime.now,
@@ -38,42 +40,61 @@ object reply:
                                 body: String
                               )
 
-  object Reply:
+  case class ReplyFrontEnd(
+                           id: UUID = UUID.randomUUID,
+                           accountId: UUID = UUID.randomUUID,
+                           accountUsername:String ="",
+                           postId: UUID = UUID.randomUUID,
+                           parentId: Option[UUID] = Some(UUID.randomUUID),
+                           dateCreated: LocalDateTime = LocalDateTime.now,
+                           dateUpdated: LocalDateTime = LocalDateTime.now,
+                           body: String = ""
+                         )
 
-    val accountid = UUID.fromString("f170bb9c-bfd4-483f-9357-9859009169f6")
-    val postid = UUID.fromString("95437f60-aec5-4ea0-926b-2d2d54158d11")
-    val parentid = None//Some(UUID.fromString("4a6df968-50c4-4eb2-875f-87f22d734a06"))
+  case class SendReplyFrontEnd(
+                               accountId: UUID,
+                               accountUsername:String,
+                               postId: UUID,
+                               parentId: Option[String],
+                               body: String
+                             )
 
-    val insertDummy =
-      Reply(
-        accountId = accountid,
-        postId = postid,
-        parentId = parentid,
-        body = "insertDummyTestBody"
-      )
-
-    val replyid = UUID.fromString("4a6df968-50c4-4eb2-875f-87f22d734a06")
-    
-    val dummyDTO = fromReplyToDTO(insertDummy, replyid)
-
-    def fromReplyToDTO(reply: Reply, replyId: UUID): ReplyDTO =
-      ReplyDTO(
-        id = replyId,
-        //dateCreated = reply.dateCreated,
-        //dateUpdated = reply.dateUpdated,
-        accountId = reply.accountId,
-        postId = reply.postId,
-        parentId = reply.parentId,
-        body = reply.body
-      )
-
-    def fromDTOtoReply(replyDTO:ReplyDTO): Reply =
-      Reply(
-
-        accountId=replyDTO.accountId,
-        postId=replyDTO.postId,
-        parentId=replyDTO.parentId,
-        //dateCreated=replyDTO.dateCreated,
-        //dateUpdated=replyDTO.dateUpdated,
-        body=replyDTO.body
-      )
+//  object Reply:
+//
+//    val accountid = UUID.fromString("f170bb9c-bfd4-483f-9357-9859009169f6")
+//    val postid = UUID.fromString("95437f60-aec5-4ea0-926b-2d2d54158d11")
+//    val parentid = None//Some(UUID.fromString("4a6df968-50c4-4eb2-875f-87f22d734a06"))
+//
+//    val insertDummy =
+//      Reply(
+//        accountId = accountid,
+//        postId = postid,
+//        parentId = parentid,
+//        body = "insertDummyTestBody"
+//      )
+//
+//    val replyid = UUID.fromString("4a6df968-50c4-4eb2-875f-87f22d734a06")
+//
+//    val dummyDTO = fromReplyToDTO(insertDummy, replyid)
+//
+//    def fromReplyToDTO(reply: Reply, replyId: UUID): ReplyDTO =
+//      ReplyDTO(
+//        id = replyId,
+//        //dateCreated = reply.dateCreated,
+//        //dateUpdated = reply.dateUpdated,
+//        accountId = reply.accountId,
+//        postId = reply.postId,
+//        parentId = reply.parentId,
+//        body = reply.body
+//      )
+//
+//    def fromDTOtoReply(replyDTO:ReplyDTO): Reply =
+//      Reply(
+//
+//        accountId=replyDTO.accountId,
+//        postId=replyDTO.postId,
+//        parentId=replyDTO.parentId,
+//        //dateCreated=replyDTO.dateCreated,
+//        //dateUpdated=replyDTO.dateUpdated,
+//        body=replyDTO.body
+//      )

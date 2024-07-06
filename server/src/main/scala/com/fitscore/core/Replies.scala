@@ -7,7 +7,7 @@ import doobie.implicits.*
 import doobie.postgres.implicits.*
 import doobie.util.transactor.Transactor
 import com.fitscore.domain.reply.*
-import com.fitscore.domain.reply.Reply.{dummyDTO, fromDTOtoReply, fromReplyToDTO, insertDummy}
+import com.fitscore.domain.reply.Reply
 import cats.data.Validated
 import cats.data.Validated.*
 import com.fitscore.domain.enums.VoteType
@@ -36,11 +36,13 @@ class RepliesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends 
     sql"""
           INSERT INTO replies(
             account_id,
+            account_username,
             post_id,
             reply_parent_id,
             reply_body
           ) VALUES (
             ${reply.accountId},
+            ${reply.accountUsername},
             ${reply.postId},
             ${reply.parentId},
             ${reply.body}
@@ -55,6 +57,7 @@ class RepliesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends 
         SELECT
           reply_id,
           account_id,
+          account_username,
           post_id,
           reply_parent_id,
           reply_date_created,
@@ -76,6 +79,7 @@ class RepliesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends 
         SELECT
           reply_id,
           account_id,
+          account_username,
           post_id,
           reply_parent_id,
           reply_date_created,
@@ -152,28 +156,28 @@ object RepliesLive {
     Resource.pure(new RepliesLive[F](postgres))
 }
 
-object RepliesPlayground extends IOApp.Simple:
-
-  def makeReplygres =
-    for
-      ec          <- ExecutionContexts.fixedThreadPool[IO](32)
-      transactor  <- HikariTransactor.newHikariTransactor[IO](
-        "org.postgresql.Driver",
-        "jdbc:postgresql://localhost:5444/",
-        "docker",
-        "docker",
-        ec
-      )
-    yield transactor
-
-  def program(postgres: Transactor[IO]) =
-    for
-      replies <- RepliesLive.make[IO](postgres)
-      _     <- replies.create(insertDummy)
-      //error    <- replies.getById(UUID.randomUUID())
-      //_     <- IO.println(error)
-      list  <- replies.all
-      _     <- IO.println(list)
-    yield ()
-
-  override def run: IO[Unit] = makeReplygres.use(program)
+//object RepliesPlayground extends IOApp.Simple:
+//
+//  def makeReplygres =
+//    for
+//      ec          <- ExecutionContexts.fixedThreadPool[IO](32)
+//      transactor  <- HikariTransactor.newHikariTransactor[IO](
+//        "org.postgresql.Driver",
+//        "jdbc:postgresql://localhost:5444/",
+//        "docker",
+//        "docker",
+//        ec
+//      )
+//    yield transactor
+//
+//  def program(postgres: Transactor[IO]) =
+//    for
+//      replies <- RepliesLive.make[IO](postgres)
+//      _     <- replies.create(insertDummy)
+//      //error    <- replies.getById(UUID.randomUUID())
+//      //_     <- IO.println(error)
+//      list  <- replies.all
+//      _     <- IO.println(list)
+//    yield ()
+//
+//  override def run: IO[Unit] = makeReplygres.use(program)

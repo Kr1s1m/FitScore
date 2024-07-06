@@ -71,6 +71,7 @@ enum Msg:
   case TitleInput(title: String)
   case AddPost
   case CreatePost
+  case FullPost(post:PostFrontEnd)
 
 case class Model(
                   accounts: List[AccountPrint] = List(),
@@ -94,12 +95,13 @@ case class Model(
                   otherProfile: AccountInfo = AccountInfo("","","","","",0,0.0),
                   leaderBoardIsOpen :Boolean = false,
                   posts: List[PostFrontEnd] = Nil,
-                  post: SendPostFrontEnd = SendPostFrontEnd("","",""),
+                  post: SendPostFrontEnd = SendPostFrontEnd("","","",""),
                   postTitle: String ="",
                   postBody: String ="",
                   createPost: Boolean = false,
                   accountId: String = "",
-                  vote : FrontEndVote = FrontEndVote("","",None,"","")
+                  vote : FrontEndVote = FrontEndVote("","",None,"",""),
+                  currentPost: Option[PostFrontEnd] = None
                 )
 
 @JSExportTopLevel("FitScoreApp")
@@ -315,6 +317,28 @@ object App extends TyrianApp[Msg, Model]:
               button(onClick(Msg.Close))("Close")))))))
     case _ => div()()
     })
+
+  private def fullPostHtml(model: Model): Html[Msg] =
+     (model.currentPost) match
+       case None => div()()
+       case Some(post) =>
+        div(cls:="post-popup show-popup")(
+          div(id := "post-overlay")(
+            div(id := "post-popup")(
+              div(id := "post-popup-content")(
+                div(`class` := "post")(
+                  h2(`class` := "post-title")(post.title),
+                  p(`class` := "post-content")(post.body),
+                  span(`class` := "post-author")(post.dateCreated),
+                  span(`class` := "post-author")(post.dateCreated),
+                  span(`class` := "post-author")("by " + post.accountUsername),
+                  lbButton("/\\",Msg.Upvote(post.id,Post),"green active"),text(post.balance.toString),lbButton("\\/",Msg.Downvote(post.id,Post),"red active"),br,
+                  lbButton("+",Msg.NoMsg)
+              )
+            )
+          )
+        )
+        )
   private def profileHtml(model: Model): Html[Msg] =
     div(
     cls := "profile-container")(
@@ -371,8 +395,9 @@ object App extends TyrianApp[Msg, Model]:
               p(`class` := "post-content")(post.body),
               span(`class` := "post-author")(post.dateCreated),
               span(`class` := "post-author")(post.dateCreated),
-              span(`class` := "post-author")("by " + post.accountId),
-              lbButton("/\\",Msg.Upvote(post.id,Post),"green active"),text(post.balance.toString),lbButton("\\/",Msg.Downvote(post.id,Post),"red active"),
+              span(`class` := "post-author")("by " + post.accountUsername),
+              lbButton("/\\",Msg.Upvote(post.id,Post),"green active"),text(post.balance.toString),lbButton("\\/",Msg.Downvote(post.id,Post),"red active"),br,
+              lbButton("Read Replies",Msg.FullPost(post))
 
             )
           )
@@ -401,6 +426,7 @@ object App extends TyrianApp[Msg, Model]:
         text(model.error),
         registerHtml(model),
         loginHtml(model),
+        fullPostHtml(model),
         button(cls := "cool-button",onClick(Msg.ToDo))("Errors"),
         (model.storeCookie match
           case Some(_) => div()(button(cls := "cool-button",onClick(Msg.LogOut))("Logout"),button(cls := "green",onClick(Msg.Open))("Register"))
@@ -476,7 +502,8 @@ object App extends TyrianApp[Msg, Model]:
     case Msg.CreatePost =>
       val storeCookie = model.storeCookie.getOrElse(LoginResponse("",""))
       (model.copy(createPost = !model.createPost),getAccountByUsername(storeCookie.username))
-    case Msg.AddPost => (model,addPostCall(SendPostFrontEnd(model.profile.id,model.postTitle,model.postBody)))
+    case Msg.AddPost => (model,addPostCall(SendPostFrontEnd(model.profile.id,model.profile.username,model.postTitle,model.postBody)))
+    case Msg.FullPost(post:PostFrontEnd) => (model.copy(currentPost = Some(post)),Cmd.None)
 
     case Msg.LogIn =>
       val login = LoginRequest(model.email,model.password)

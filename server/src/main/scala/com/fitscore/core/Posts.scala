@@ -7,7 +7,7 @@ import doobie.implicits.*
 import doobie.postgres.implicits.*
 import doobie.util.transactor.Transactor
 import com.fitscore.domain.post.*
-import com.fitscore.domain.post.Post.{dummyDTO, fromDTOtoPost, fromPostToDTO}
+import com.fitscore.domain.post.Post
 import com.fitscore.domain.enums.VoteType
 import com.fitscore.domain.enums.VoteType.*
 import cats.data.Validated
@@ -36,10 +36,12 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
     sql"""
           INSERT INTO posts(
             account_id,
+            account_username,
             post_title,
             post_body
           ) VALUES (
             ${post.accountId},
+            ${post.accountUsername},
             ${post.title},
             ${post.body}
           )
@@ -55,6 +57,7 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
             post_date_created,
             post_date_updated,
             account_id,
+            account_username,
             post_title,
             post_body,
             post_balance
@@ -76,6 +79,7 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
           post_date_created,
           post_date_updated,
           account_id,
+          account_username,
           post_title,
           post_body,
           post_vote_balance
