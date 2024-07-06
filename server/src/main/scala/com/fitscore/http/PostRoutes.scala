@@ -11,11 +11,12 @@ import org.http4s.circe.CirceEntityCodec.*
 import org.http4s.dsl.Http4sDsl
 import org.http4s.implicits.*
 import org.http4s.server.Router
-
 import cats.data.Validated
 import cats.data.Validated.*
 import com.fitscore.errors.PostUpdateRequestError
 import com.fitscore.errors.PostUpdateRequestError.*
+
+import java.time.LocalDateTime
 
 class PostRoutes[F[_]: Concurrent] private (posts: Posts[F]) extends Http4sDsl[F]:
   private val prefix = "/posts"
@@ -72,6 +73,13 @@ class PostRoutes[F[_]: Concurrent] private (posts: Posts[F]) extends Http4sDsl[F
         case i => NoContent()
       }
   }
+  //DELETE /posts/safe{id}
+  private val safeDeleteByIdRoute: HttpRoutes[F] = HttpRoutes.of[F] {
+    case DELETE -> Root / "safe" / UUIDVar(postId) => posts.update(PostUpdateRequest(postId,LocalDateTime.now,"","[Deleted]","[Deleted]")).flatMap {
+      case Invalid(e) => NotFound(s"Safe delete failed: $e")
+      case _ => NoContent()
+    }
+  }
 
   val routes: HttpRoutes[F] = Router(
     prefix -> (
@@ -80,7 +88,8 @@ class PostRoutes[F[_]: Concurrent] private (posts: Posts[F]) extends Http4sDsl[F
       getAllRoute <+>
       getPostKarmaByAccountIdRoute <+>
       updateByIdRoute <+>
-      deleteByIdRoute
+      deleteByIdRoute <+>
+      safeDeleteByIdRoute
     )
   )
 

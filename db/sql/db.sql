@@ -23,9 +23,9 @@ create table posts(
 
 create table replies(
     reply_id uuid primary key NOT NULL DEFAULT gen_random_uuid (),
-    account_id uuid NOT NULL REFERENCES accounts(account_id),
+    account_id uuid  REFERENCES accounts(account_id),
     account_username character varying(25),
-    post_id uuid NOT NULL REFERENCES posts(post_id) ON DELETE CASCADE,
+    post_id uuid REFERENCES posts(post_id) ON DELETE CASCADE,
     reply_parent_id uuid REFERENCES replies(reply_id) ON DELETE CASCADE,
     reply_date_created timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     reply_date_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
@@ -43,8 +43,8 @@ create table verification_tokens(
 create table votes(
     vote_id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid (),
     account_id uuid NOT NULL REFERENCES accounts(account_id),
-    post_id uuid NOT NULL REFERENCES posts(post_id),
-    reply_id uuid REFERENCES replies(reply_id),
+    post_id uuid REFERENCES posts(post_id),
+    reply_id uuid REFERENCES replies(reply_id) ON DELETE CASCADE,
     vote_type character varying(255) NOT NULL DEFAULT 'upvote',
     vote_target character varying(255) NOT NULL DEFAULT 'post'
 );
