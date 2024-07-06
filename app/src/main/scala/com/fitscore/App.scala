@@ -439,7 +439,7 @@ object App extends TyrianApp[Msg, Model]:
                   h2(`class` := "post-title")(post.title),
                   p(`class` := "post-content")(post.body),
                   span(`class` := "post-author")(post.dateCreated),
-                  span(`class` := "post-author")(post.dateCreated),
+                  span(`class` := "post-author")(post.dateUpdated),
                   clickableProfile(post.accountUsername),
                   lbButton("/\\",Msg.Upvote(post.id,Post),"green active"),text(post.balance.toString),lbButton("\\/",Msg.Downvote(post.id,Post),"red active"),br,
                   lbButton("+",Msg.CreateReply(None,post.id)),button(cls:= "cool-button",onClick(Msg.CloseFullPost))("Close"),
@@ -553,7 +553,7 @@ object App extends TyrianApp[Msg, Model]:
               h2(`class` := "post-title")(post.title),
               p(`class` := "post-content")(post.body),
               span(`class` := "post-author")(post.dateCreated),
-              span(`class` := "post-author")(post.dateCreated),
+              span(`class` := "post-author")(post.dateUpdated),
               clickableProfile(post.accountUsername),
               lbButton("/\\",Msg.Upvote(post.id,Post),"green active"),text(post.balance.toString),lbButton("\\/",Msg.Downvote(post.id,Post),"red active"),br,
               lbButton("Read Replies",Msg.FullPost(post))
@@ -776,7 +776,7 @@ object App extends TyrianApp[Msg, Model]:
           val sort = model.accounts.sortBy(x => (x.height, x.weight))
           (model.copy(accounts = sort), Cmd.None)
         case _ => (model,Cmd.None)
-        
+
     case _=> (model,Cmd.None)
 
 
