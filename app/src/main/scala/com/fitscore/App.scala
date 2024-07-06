@@ -34,6 +34,7 @@ enum DynPage:
   case Leader
   case Profile(name:String)
 enum Msg:
+  case None
   case LoadReplies(replies: List[ReplyFrontEnd])
   case AddReply
   case ContentInputReply(content:String)
@@ -77,6 +78,7 @@ enum Msg:
   case AddPost
   case CreatePost
   case FullPost(post:PostFrontEnd)
+  case CloseFullPost
 
 case class Model(
                   accounts: List[AccountPrint] = List(),
@@ -138,7 +140,7 @@ object App extends TyrianApp[Msg, Model]:
       Decoder[Msg](
       resp =>
         parse(resp.body) match {
-          case Left(e)     => Msg.Error(e.getMessage+s"${resp.toString}")
+          case Left(e)     => Msg.Error(e.getMessage)
           case Right(r) => Msg.LogIn
         },
       err => Msg.Error(err.toString)))
@@ -150,7 +152,7 @@ object App extends TyrianApp[Msg, Model]:
       Decoder[Msg](
         resp =>
           parse(resp.body).flatMap(_.as[LoginResponse]) match {
-            case Left(e) => Msg.Error(e.toString+s"${resp.body}")
+            case Left(e) => Msg.Error(e.toString)
             case Right(r) => Msg.StoreCookie(r)
           },
         err => Msg.Error(err.toString)))
@@ -160,7 +162,7 @@ object App extends TyrianApp[Msg, Model]:
       Decoder[Msg](
         resp =>
           parse(resp.body).flatMap(_.as[AccountInfo]) match {
-            case Left(e) => Msg.Error(s"${resp.body}")//+e.getMessage)
+            case Left(e) => Msg.Error(e.getMessage)//+e.getMessage)
             case Right(acc) => Msg.GotProfile(acc)
           },
         err => Msg.Error(err.toString)
@@ -186,22 +188,22 @@ object App extends TyrianApp[Msg, Model]:
       Decoder[Msg](
         resp =>
           parse(resp.body).flatMap(_.as[AccountInfo]) match {
-            case Left(e) => Msg.Error(s"${resp.body}")//+e.getMessage)
+            case Left(e) => Msg.Error(e.getMessage)//+e.getMessage)
             case Right(acc) => Msg.NoMsg
           },
         err => Msg.Error(err.toString)
       )
     )
 
-  private def addReplyCall(reply: SendReplyFrontEnd): Cmd[IO, Msg] =
+  private def addReplyCall(reply: SendReplyFrontEnd,post: PostFrontEnd): Cmd[IO, Msg] =
     val json = reply.asJson.toString
     Http.send(
       Request.post("http://localhost:8080/replies/create", tyrian.http.Body.json(json)),
       Decoder[Msg](
         resp =>
           parse(resp.body).flatMap(_.as[String]) match {
-            case Left(e) => Msg.Error(e.toString + s"${resp.body}")
-            case Right(r) => Msg.NoMsg
+            case Left(e) => Msg.Error(e.getMessage)
+            case Right(r) => Msg.FullPost(post)
           },
         err => Msg.Error(err.toString)))
     ///posts/create
@@ -212,8 +214,8 @@ object App extends TyrianApp[Msg, Model]:
      Decoder[Msg](
        resp =>
          parse(resp.body).flatMap(_.as[String]) match {
-           case Left(e) => Msg.Error(e.toString+s"${resp.body}")
-           case Right(r) => Msg.NoMsg
+           case Left(e) => Msg.Error(e.getMessage)
+           case Right(r) => Msg.OpenPosts
          },
        err => Msg.Error(err.toString)))
 
@@ -224,8 +226,8 @@ object App extends TyrianApp[Msg, Model]:
       Decoder[Msg](
         resp =>
           parse(resp.body).flatMap(_.as[String]) match {
-            case Left(e) => Msg.Error(e.toString + s"${resp.body}")
-            case Right(r) => Msg.NoMsg
+            case Left(e) => Msg.Error(e.getMessage)
+            case Right(r) => Msg.None
           },
         err => Msg.Error(err.toString)))
 //  private def getPostKarma(post: PostFrontEnd): Cmd[IO,Msg] =
@@ -369,7 +371,7 @@ object App extends TyrianApp[Msg, Model]:
                   span(`class` := "post-author")(post.dateCreated),
                   span(`class` := "post-author")("by " + post.accountUsername),
                   lbButton("/\\",Msg.Upvote(post.id,Post),"green active"),text(post.balance.toString),lbButton("\\/",Msg.Downvote(post.id,Post),"red active"),br,
-                  lbButton("+",Msg.CreateReply(None,post.id)),
+                  lbButton("+",Msg.CreateReply(None,post.id)),button(cls:= "cool-button",onClick(Msg.CloseFullPost))("Close"),
                   if model.createReply then createReplyHtlm(model) else div()(),
                   div()(
                     model.currentPostReplies.map(x=>replyHtml(x,model))
@@ -420,7 +422,7 @@ object App extends TyrianApp[Msg, Model]:
         br,
         input(placeholder := "Content", value := model.post.body, onInput(e => Msg.ContentInput(e))),
         br,
-        br,
+        br,//add limiter for empty post
         button(onClick(Msg.AddPost))("Add Post")
       )
     )
@@ -431,7 +433,7 @@ object App extends TyrianApp[Msg, Model]:
         div(id := "post-form")(
           input(placeholder := "Content", value := model.replyBody, onInput(e => Msg.ContentInputReply(e))),
           br,
-          button(onClick(Msg.AddReply))("Add Reply")
+          button(onClick(Msg.AddReply))("reply")
         )
       )
 
@@ -457,19 +459,22 @@ object App extends TyrianApp[Msg, Model]:
   def replyHtml(reply:ReplyFrontEnd,model:Model): Html[Msg] =
     model.currentPost match
       case None => div()()
-      case Some(currPost) => 
+      case Some(currPost) =>
         div(`class` := "post")(
+          span(`class` := "post-id")("reply id:"+reply.id),
           p(`class` := "post-content")(reply.body),
           span(`class` := "post-author")(reply.dateCreated),
           span(`class` := "post-author")(reply.dateUpdated),
           span(`class` := "post-author")("by " + reply.accountUsername),
+          span(`class` := "post-author")("replied to " + (if reply.parentId.isEmpty then "OP" else reply.parentId.getOrElse(""))),
           lbButton("/\\",Msg.Upvote(currPost.id,Reply,reply.id),"green"),text(reply.balance.toString),lbButton("\\/",Msg.Downvote(currPost.id,Reply,reply.id),"red"),br,
-          lbButton("+",Msg.AddReply)
+          lbButton("+",Msg.CreateReply(Some(reply.id),currPost.id))
           )
 
   val testCompetitors = List(("190","63","12.5"),("180","79","15.0"),("160","80","20.0"))
   override def view(model: Model): Html[Msg] =
     div(cls:="leaderboard",id := "Home page")(
+        button(cls := "cool-button",onClick(Msg.ToDo))("Errors"),br,
         text(s"${model.accountId}"),
         lbButton("Leaderboard",Msg.LoadLeaderBoard),
         lbButton("Posts",Msg.OpenPosts),
@@ -490,7 +495,6 @@ object App extends TyrianApp[Msg, Model]:
         registerHtml(model),
         loginHtml(model),
         fullPostHtml(model),
-        button(cls := "cool-button",onClick(Msg.ToDo))("Errors"),
         (model.storeCookie match
           case Some(_) => div()(button(cls := "cool-button",onClick(Msg.LogOut))("Logout"),button(cls := "green",onClick(Msg.Open))("Register"))
           case _ => div()(button(cls := "cool-button",onClick(Msg.LogInOpen))("Login"),button(cls := "cool-button",onClick(Msg.Open))("Register"))),
@@ -508,11 +512,11 @@ object App extends TyrianApp[Msg, Model]:
    Decoder[Msg](r => Msg.HoldInformation("sauz1"),e => Msg.HoldInformation("saauz"))
 
   override def update(model: Model): Msg => (Model, Cmd[IO, Msg]) = {
-    case Msg.ToDo => (model.copy(error=s"${model.storeCookie}"), Cmd.None)
-
+    case Msg.ToDo => (model.copy(error=""), Cmd.None)
+    case Msg.None => (model,Cmd.None)
     case Msg.NoMsg =>
       val cookie = entries(dom.window.localStorage).head
-      (model.copy(error="",storeCookie = Some(LoginResponse(cookie._1,cookie._2.toString))), Cmd.None)
+      (model.copy(storeCookie = Some(LoginResponse(cookie._1,cookie._2.toString))), getAccountByUsername(cookie._1))
 
     case Msg.Error(e) => (model.copy(error=e),Cmd.None)
     case Msg.LoadLeaderBoard =>
@@ -526,7 +530,7 @@ object App extends TyrianApp[Msg, Model]:
     case Msg.AgeInput(_) => (model, Cmd.None)
 
     case Msg.ShowAll => (model,backendCall)
-    case Msg.HideAll => (Model(),Cmd.None)
+    case Msg.HideAll => (model.copy(pages=List(DynPage.Home),accounts=Nil),Cmd.None)
 
     case Msg.Close => (model.copy(pages=List(DynPage.Home),password=""),Cmd.None)
     case Msg.Open => (model.copy(pages=List(DynPage.Register),password=""),Cmd.None)
@@ -568,16 +572,16 @@ object App extends TyrianApp[Msg, Model]:
     case Msg.LoadPosts(posts) => (model.copy(posts=posts,loadProfile = false),Cmd.None)
     case Msg.CreatePost =>
       val storeCookie = model.storeCookie.getOrElse(LoginResponse("",""))
-      (model.copy(createPost = !model.createPost),getAccountByUsername(storeCookie.username))
+      (model.copy(createPost = !model.createPost),backendCallPosts)
     case Msg.AddPost => (model,addPostCall(SendPostFrontEnd(model.profile.id,model.profile.username,model.postTitle,model.postBody)))
     case Msg.FullPost(post:PostFrontEnd) => (model.copy(currentPost = Some(post)),getRepliesByPost(post.id))
 
     case Msg.ContentInputReply(content) => (model.copy(replyBody = content),Cmd.None)
-    case Msg.AddReply => (model,addReplyCall(SendReplyFrontEnd(model.profile.id,model.profile.username,model.replyPost,model.replyParent,model.replyBody)))
+    case Msg.AddReply => (model,addReplyCall(SendReplyFrontEnd(model.profile.id,model.profile.username,model.replyPost,model.replyParent,model.replyBody),model.currentPost.getOrElse(PostFrontEnd())))
     case Msg.CreateReply(parent,post) =>
       val storeCookie = model.storeCookie.getOrElse(LoginResponse("",""))
       (model.copy(createReply = !model.createReply,replyParent = parent,replyPost= post),getAccountByUsername(storeCookie.username))
-
+    case Msg.CloseFullPost => (model.copy(currentPost = None),Cmd.None)
     case Msg.LoadReplies(replies) => (model.copy(currentPostReplies = replies),Cmd.None)
 
 

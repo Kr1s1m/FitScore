@@ -26,14 +26,14 @@ object post:
                    body: String
                  )
   case class PostFrontEnd(
-                         id: String,
-                         dateCreated: String,
-                         dateUpdated: String,
-                         accountId: String,
-                         accountUsername:String,
-                         title: String,
-                         body: String,
-                         balance: Long
+                         id: String ="",
+                         dateCreated: String="",
+                         dateUpdated: String="",
+                         accountId: String="",
+                         accountUsername:String="",
+                         title: String="",
+                         body: String="",
+                         balance: Long=0
                          )
   case class SendPostFrontEnd(
                                accountId: String,
