@@ -300,6 +300,11 @@ body {
          font-size: 24px;
          color: #333;
        }
+       .post-id {
+                margin-top: 0;
+                font-size: 10px;
+                color: #333;
+       }
        .post-content {
          font-size: 16px;
          color: #555;
@@ -344,7 +349,7 @@ body {
              border-radius: 5px;
            }
            #post-form button {
-             padding: 10px 20px;
+             padding: 1px 2px;
              background-color: #28a745;
              color: #fff;
              border: none;

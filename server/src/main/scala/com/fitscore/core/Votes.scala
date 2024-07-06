@@ -84,10 +84,9 @@ class VotesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Vo
       .option
       .transact(transactor)
       .map {
-        case a@Some(_) => a
+        case a@Some(s) => println(s.toString);a
         case _ =>
-          println(s"[Internal Error] getByAccountAndPostOrReplyIds: " +
-                  s"Not found vote information by (account_id, post_id, Option[reply_id]): " +
+          println(s"Can add vote for:  " +
                   s"($aid, $pid, $replyId)"
           )
           None
@@ -95,7 +94,7 @@ class VotesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Vo
 
     replyId match
       case Some(rid) => selectQuery(accountId, postId, s"reply_id = '$rid' AND")
-      case None      => selectQuery(accountId, postId, s"")
+      case None      => selectQuery(accountId, postId, "reply_id is null AND")
 
   override def delete(id: UUID): F[Int] =
     sql"""

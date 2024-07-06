@@ -60,7 +60,7 @@ class PostsLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Po
             account_username,
             post_title,
             post_body,
-            post_balance
+            post_vote_balance
           FROM posts
           WHERE post_id=$id
     """
