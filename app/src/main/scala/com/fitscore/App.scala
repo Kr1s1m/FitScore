@@ -1,6 +1,6 @@
 package com.fitscore
 
-
+import org.scalajs.dom.{MouseEvent, window}
 import cats.effect.*
 import com.fitscore.DynPage.Profile
 import com.fitscore.domain.account.*
@@ -32,17 +32,29 @@ enum DynPage:
   case Register
   case Home
   case Leader
-  case Profile(name:String)
+  case Profile
 enum Msg:
+  case Send
+  case Reset
+  case MouseDown
+  case MouseUp
+  case MouseOver(buttonId: Int)
+  case SortBy(s:String)
+  case CloseOtherProfile
+  case GotKarmaPosts(karma: Long)
+  case GotKarmaReplies(karma: Long)
+  case GotKarmaPostsOther(karma: Long,accountId: String)
+  case GotKarmaRepliesOther(karma: Long)
   case None
   case LoadReplies(replies: List[ReplyFrontEnd])
+  case CheckProfile(account: AccountInfo)
   case AddReply
   case ContentInputReply(content:String)
   case CreateReply(parentId:Option[String],postId:String)
   case Upvote(postId:String,target:VoteTarget,replyId:String="")
   case Downvote(postId:String,target:VoteTarget,replyId:String="")
   case OpenPosts
-  case LoadLeaderBoard
+  case LoadLeaderboard
   case LogOut
   case NoMsg
   case ShowAll
@@ -115,6 +127,15 @@ case class Model(
                   createReply: Boolean = false,
                   replyParent: Option[String] = None,
                   replyPost: String = "",
+                  isMouseDown: Boolean = false,
+                  activeButtons: Set[Int] = Set.empty,
+
+                  currentUserKarmaPosts: Long = 0,
+                  currentUserKarmaReplies: Long = 0,
+
+                  otherUserKarmaPosts: Long = 0 ,
+                  otherUserKarmaReplies: Long = 0
+
                 )
 
 @JSExportTopLevel("FitScoreApp")
@@ -230,18 +251,31 @@ object App extends TyrianApp[Msg, Model]:
             case Right(r) => Msg.None
           },
         err => Msg.Error(err.toString)))
-//  private def getPostKarma(post: PostFrontEnd): Cmd[IO,Msg] =
-//    Http.send(
-//      Request.get(s"http://localhost:8080/posts/karma/${post.id}"),
-//      Decoder[Msg](
-//        resp =>
-//          parse(resp.body).flatMap(_.as[Long]) match {
-//            case Left(e) => Msg.Error(s"${resp.body}")//+e.getMessage)
-//            case Right(karma) => Msg.GotKarma(post,karma)
-//          },
-//        err => Msg.Error(err.toString)
-//      )
-//    )
+  private def getKarmaPosts(account: String): Cmd[IO,Msg] =
+    Http.send(
+      Request.get(s"http://localhost:8080/posts/karma/${account}"),
+      Decoder[Msg](
+        resp =>
+          parse(resp.body).flatMap(_.as[Long]) match {
+            case Left(e) => Msg.Error(s"${resp.body}")//+e.getMessage)
+            case Right(karma) => Msg.GotKarmaPosts(karma)
+          },
+        err => Msg.Error(err.toString)
+      )
+    )
+
+  private def getKarmaReplies(account: String): Cmd[IO, Msg] =
+      Http.send(
+        Request.get(s"http://localhost:8080/replies/karma/${account}"),
+        Decoder[Msg](
+          resp =>
+            parse(resp.body).flatMap(_.as[Long]) match {
+              case Left(e) => Msg.Error(s"${resp.body}") //+e.getMessage)
+              case Right(karma) => Msg.GotKarmaReplies(karma)
+            },
+          err => Msg.Error(err.toString)
+        )
+      )
 //  private def getPostsKarma(posts:List[PostFrontEnd]): Cmd[IO,Msg] = ???
   private def getRepliesByPost(postId: String): Cmd[IO, Msg] =
     Http.send(
@@ -251,6 +285,19 @@ object App extends TyrianApp[Msg, Model]:
           parse(resp.body).flatMap(_.as[List[ReplyFrontEnd]]) match {
             case Left(e) => Msg.Error(s"${resp.body}") //+e.getMessage)
             case Right(replies) => Msg.LoadReplies(replies)
+          },
+        err => Msg.Error(err.toString)
+      )
+    )
+
+  private def backendCallGetOtherProfile(name: String): Cmd[IO,Msg] =
+    Http.send(
+      Request.get(s"http://localhost:8080/accounts/username/$name"),
+      Decoder[Msg](
+        resp =>
+          parse(resp.body).flatMap(_.as[AccountInfo]) match {
+            case Left(e) => Msg.Error(e.getMessage) //+e.getMessage)
+            case Right(acc) => Msg.CheckProfile(acc)
           },
         err => Msg.Error(err.toString)
       )
@@ -285,22 +332,46 @@ object App extends TyrianApp[Msg, Model]:
   def quickButtonCheck(p:Boolean): String = if p then "red" else "green"
 
   def lbButton(attribute:String,msg: Msg = Msg.ToDo,style:String="cool-button"): Html[Msg] = button(onClick(msg),cls:=s"${style}")(attribute) //leaderboarddbuttons
-  private def leaderboardHtml(competitors:List[(String,String,String)]):Html[Msg] =
+  private def leaderboardHtml(model: Model):Html[Msg] =
     div(cls:="leaderboard")(
-    lbButton("Name"),lbButton("Height"),lbButton("Weight"),lbButton("Bodyfat"),
+      multipleButtons(model),
+      text(s"${model.activeButtons}"),
+      lbButton("Reset",Msg.Reset),lbButton("Apply",Msg.Send),
+      br,
+      lbButton("Name",Msg.NoMsg),
+      lbButton("Height",Msg.SortBy("Height")),
+      lbButton("Weight",Msg.SortBy("Weight")),
     div()(
-      competitors.map(leaderboardEntry)
-        //leaderboardEntry(model.accounts(2)),
-
-        // Add more entries as needed
+      model.accounts.map(leaderboardEntry)
       )
     )
 
+  def multipleButtons(model: Model): Html[Msg] =
+    div()(
+      button(
+        onMouseDown(_ => Msg.MouseDown),
+        onMouseUp(_ => Msg.MouseUp),
+        onMouseOver(_ => Msg.MouseOver(1)),
+        style := (if model.activeButtons.contains(1) then "background-color: yellow;" else "")
+      )("Button 1"),
+      button(
+        onMouseDown(_ => Msg.MouseDown),
+        onMouseUp(_ => Msg.MouseUp),
+        onMouseOver(_ => Msg.MouseOver(2)),
+        style := (if model.activeButtons.contains(2) then "background-color: yellow;" else "")
+      )("Button 2"),
+      button(
+        onMouseDown(_ => Msg.MouseDown),
+        onMouseUp(_ => Msg.MouseUp),
+        onMouseOver(_ => Msg.MouseOver(3)),
+        style := (if model.activeButtons.contains(3) then "background-color: yellow;" else "")
+      )("Button 3")
+    )
   def keyComponent(t:String,show: String): Html[Msg] =
-    div(cls:=s"${show}")(text(t))
-  def leaderboardEntry(height:String,weight:String,bodyfat:String): Html[Msg] =
+    div(cls:=s"$show")(text(t))
+  def leaderboardEntry(account: AccountPrint): Html[Msg] =
     div(cls:="leaderboard-entry")(
-      div(cls:="leaderboard-entry")(List(keyComponent("Rank ?","rank"),keyComponent("Dero","name"),keyComponent("randomStat1","score"),keyComponent("randomStat2","score"))
+      div(cls:="leaderboard-entry")(List(keyComponent("Rank ?","rank"),clickableProfile(account.username,""),keyComponent(s"${account.height}","score"),keyComponent(s"${account.weight}","score"))
     ))
 
   private def registerHtml(model: Model): Html[Msg] =
@@ -369,7 +440,7 @@ object App extends TyrianApp[Msg, Model]:
                   p(`class` := "post-content")(post.body),
                   span(`class` := "post-author")(post.dateCreated),
                   span(`class` := "post-author")(post.dateCreated),
-                  span(`class` := "post-author")("by " + post.accountUsername),
+                  clickableProfile(post.accountUsername),
                   lbButton("/\\",Msg.Upvote(post.id,Post),"green active"),text(post.balance.toString),lbButton("\\/",Msg.Downvote(post.id,Post),"red active"),br,
                   lbButton("+",Msg.CreateReply(None,post.id)),button(cls:= "cool-button",onClick(Msg.CloseFullPost))("Close"),
                   if model.createReply then createReplyHtlm(model) else div()(),
@@ -400,7 +471,7 @@ object App extends TyrianApp[Msg, Model]:
         div(
           cls := "profile-field")(
           label(s"Email: "),
-          span(s"${model.email}")
+          span(s"${model.profile.email}")
         ),
           div(
           cls := "profile-field")(
@@ -410,10 +481,46 @@ object App extends TyrianApp[Msg, Model]:
           div(
           cls := "profile-field")(
           label(s"Weight: "),
-          span(s"${model.profile.weight}")
+          span(s"${model.profile.weight}"),
+          div(
+           cls := "profile-field")(br,
+           label(s"Karma: "),br,
+           span(cls := (if model.currentUserKarmaPosts >= 0 then "text-green" else "text-red"))(s"Posts karma:${model.currentUserKarmaPosts}"),br,
+           span(cls := (if model.currentUserKarmaReplies >= 0 then "text-green" else "text-red"))(s"Replies karma: ${model.currentUserKarmaReplies}") ),
+
         )
     )
   )
+
+  private def otherProfileHtml(user: AccountInfo): Html[Msg] =
+    div(
+      cls := "profile-container",`style` := s"position: absolute; top: ${0}px; left: ${0}px")(
+      h1("Profile: "),
+      div(
+        cls := "profile-info")(
+        div(
+          cls := "profile-field")(
+          label("Name: "),
+          span(user.username)
+        ),
+        div(
+          cls := "profile-field")(
+          label(s"Id: "),
+          span(s"${user.id}")
+        ),
+        div(
+          cls := "profile-field")(
+          label(s"Height: "),
+          span(s"${user.height}")
+        ),
+        div(
+          cls := "profile-field")(
+          label(s"Weight: "),
+          span(s"${user.weight}")
+        ),
+        lbButton("close",Msg.CloseOtherProfile)
+      )
+    )
   def createPostHtlm(model: Model): Html[Msg] =
     div()(
       h1("Create a Post"),
@@ -437,7 +544,6 @@ object App extends TyrianApp[Msg, Model]:
         )
       )
 
-  def calculatePostKarma(post:PostFrontEnd): Int = 0
   def postsHtml(model: Model): Html[Msg] =
       div()(
         h1("Posts"),
@@ -448,7 +554,7 @@ object App extends TyrianApp[Msg, Model]:
               p(`class` := "post-content")(post.body),
               span(`class` := "post-author")(post.dateCreated),
               span(`class` := "post-author")(post.dateCreated),
-              span(`class` := "post-author")("by " + post.accountUsername),
+              clickableProfile(post.accountUsername),
               lbButton("/\\",Msg.Upvote(post.id,Post),"green active"),text(post.balance.toString),lbButton("\\/",Msg.Downvote(post.id,Post),"red active"),br,
               lbButton("Read Replies",Msg.FullPost(post))
 
@@ -456,6 +562,8 @@ object App extends TyrianApp[Msg, Model]:
           )
         )
       )
+  def clickableProfile(s: String,by:String ="by "): Html[Msg]  =  span(`class` := "post-author",style := "cursor: pointer; color: blue; text-decoration: underline;",
+    onClick(Msg.OpenProfile(s)))(by + s)
   def replyHtml(reply:ReplyFrontEnd,model:Model): Html[Msg] =
     model.currentPost match
       case None => div()()
@@ -465,18 +573,20 @@ object App extends TyrianApp[Msg, Model]:
           p(`class` := "post-content")(reply.body),
           span(`class` := "post-author")(reply.dateCreated),
           span(`class` := "post-author")(reply.dateUpdated),
-          span(`class` := "post-author")("by " + reply.accountUsername),
+          clickableProfile(reply.accountUsername),
           span(`class` := "post-author")("replied to " + (if reply.parentId.isEmpty then "OP" else reply.parentId.getOrElse(""))),
           lbButton("/\\",Msg.Upvote(currPost.id,Reply,reply.id),"green"),text(reply.balance.toString),lbButton("\\/",Msg.Downvote(currPost.id,Reply,reply.id),"red"),br,
           lbButton("+",Msg.CreateReply(Some(reply.id),currPost.id))
           )
 
-  val testCompetitors = List(("190","63","12.5"),("180","79","15.0"),("160","80","20.0"))
+  //val testCompetitors = List(("190","63","12.5"),("180","79","15.0"),("160","80","20.0"))
   override def view(model: Model): Html[Msg] =
     div(cls:="leaderboard",id := "Home page")(
+        if model.leaderBoardIsOpen then
+        leaderboardHtml(model) else div()(),
         button(cls := "cool-button",onClick(Msg.ToDo))("Errors"),br,
         text(s"${model.accountId}"),
-        lbButton("Leaderboard",Msg.LoadLeaderBoard),
+        lbButton("Leaderboard",Msg.LoadLeaderboard),
         lbButton("Posts",Msg.OpenPosts),
         lbButton("Create Post",Msg.CreatePost),
         if model.createPost then createPostHtlm(model) else div()(),
@@ -499,7 +609,7 @@ object App extends TyrianApp[Msg, Model]:
           case Some(_) => div()(button(cls := "cool-button",onClick(Msg.LogOut))("Logout"),button(cls := "green",onClick(Msg.Open))("Register"))
           case _ => div()(button(cls := "cool-button",onClick(Msg.LogInOpen))("Login"),button(cls := "cool-button",onClick(Msg.Open))("Register"))),
         postsHtml(model),
-        //leaderboardHtml(testCompetitors),
+        if model.pages.contains(DynPage.Profile) then otherProfileHtml(model.otherProfile) else div()(),
         div(`class` := "contents ")(
           model.accounts.map { account =>
             div(account.toString)
@@ -507,7 +617,7 @@ object App extends TyrianApp[Msg, Model]:
 
     )
     )
-  val minPasswordLength = 8
+  private val minPasswordLength = 8
   private def sdecode:Decoder[Msg] =
    Decoder[Msg](r => Msg.HoldInformation("sauz1"),e => Msg.HoldInformation("saauz"))
 
@@ -519,7 +629,7 @@ object App extends TyrianApp[Msg, Model]:
       (model.copy(storeCookie = Some(LoginResponse(cookie._1,cookie._2.toString))), getAccountByUsername(cookie._1))
 
     case Msg.Error(e) => (model.copy(error=e),Cmd.None)
-    case Msg.LoadLeaderBoard =>
+    case Msg.LoadLeaderboard =>
       (model.copy(leaderBoardIsOpen = true),Cmd.None) //TODO: Not sure on the design yet.
 
     case Msg.InputPassword(x) => if model.password.length < minPasswordLength then
@@ -535,7 +645,14 @@ object App extends TyrianApp[Msg, Model]:
     case Msg.Close => (model.copy(pages=List(DynPage.Home),password=""),Cmd.None)
     case Msg.Open => (model.copy(pages=List(DynPage.Register),password=""),Cmd.None)
 
-    case Msg.GotProfile(acc) => (model.copy(profile=acc,loadProfile=true),Cmd.None)
+    case Msg.GotProfile(acc) => (model.copy(profile=acc,loadProfile=true),getKarmaPosts(acc.id))
+
+    case Msg.GotKarmaPosts(karmaPosts) => (model.copy(currentUserKarmaPosts = karmaPosts),getKarmaReplies(model.profile.id))
+    case Msg.GotKarmaReplies(karmaReplies) => (model.copy(currentUserKarmaReplies = karmaReplies),Cmd.None)
+
+    case Msg.GotKarmaPostsOther(karmaPosts,acc) => (model.copy(currentUserKarmaPosts = karmaPosts),getKarmaPosts(acc))
+
+    case Msg.GotKarmaRepliesOther(karmaReplies) => (model.copy(currentUserKarmaReplies = karmaReplies),Cmd.None)
 
     case Msg.StoreCookie(r) =>
       dom.window.localStorage.setItem(r.username,r.sessionId)
@@ -545,6 +662,10 @@ object App extends TyrianApp[Msg, Model]:
       val storeCookie = model.storeCookie.getOrElse(LoginResponse("",""))
       if !model.loadProfile then (model.copy(loadProfile = !model.loadProfile),getAccountByUsername(storeCookie.username))
       else (model.copy(loadProfile = !model.loadProfile),Cmd.None)
+
+    case Msg.OpenProfile(name) => (model.copy(pages=Profile+:model.pages),backendCallGetOtherProfile(name))
+    case Msg.CloseOtherProfile => (model.copy(pages=(model.pages.toSet-Profile).toList),Cmd.None)
+    case Msg.CheckProfile(acc) => (model.copy(otherProfile=acc),Cmd.None)
 
     case Msg.TryToGetProfile(username) => (model.copy(loadProfile = !model.loadProfile),Cmd.None)
 
@@ -619,6 +740,46 @@ object App extends TyrianApp[Msg, Model]:
       //  val account = RegistrationRequest(model.email,model.username,model.height.toShort,model.weight.toDouble)
         val regAccount = RegistrationRequest(model.email,model.username,model.password,model.passwordConfirmation,model.birthDay,model.birthMonth,model.birthYear,model.height,model.weight)
         (model, backendCallRegister(regAccount))
+    case Msg.MouseDown =>
+      (model.copy(isMouseDown = true), Cmd.None)
+
+    case Msg.MouseUp =>
+      (model.copy(isMouseDown = false), Cmd.None)
+
+    case Msg.MouseOver(buttonId) if model.isMouseDown =>
+      (model.copy(activeButtons = model.activeButtons + buttonId), Cmd.None)
+    case Msg.Reset => (model.copy(activeButtons=Set.empty),Cmd.None)
+    case Msg.SortBy(x) => x match
+      case "Height" =>
+        val sort=model.accounts.sortBy(_.height).reverse
+        (model.copy(accounts=sort),Cmd.None)
+      case "Weight" =>
+        val sort=model.accounts.sortBy(_.weight).reverse
+        (model.copy(accounts=sort),Cmd.None)
+      case "Name" =>
+        val sort=model.accounts.sortBy(_.username).reverse
+        (model.copy(accounts=sort),Cmd.None)
+
+    case Msg.Send =>
+      val choices=model.activeButtons
+      (choices.contains(1),choices.contains(1),choices.contains(1)) match
+        case (true,true,true) =>
+          val sort=model.accounts.sortBy(x=>(x.username,x.height,x.weight))
+          (model.copy(accounts=sort),Cmd.None)
+        case (false,true,true) =>
+          val sort = model.accounts.sortBy(x => (x.height, x.weight))
+          (model.copy(accounts = sort), Cmd.None)
+        case (false, false, true) =>
+          val sort = model.accounts.sortBy(x => (x.height, x.weight))
+          (model.copy(accounts = sort), Cmd.None)
+        case (false, true, false) =>
+          val sort = model.accounts.sortBy(x => (x.height, x.weight))
+          (model.copy(accounts = sort), Cmd.None)
+        case _ => (model,Cmd.None)
+        
+    case _=> (model,Cmd.None)
+
+
   }
 
   override def subscriptions(model: Model): Sub[IO, Msg] =
