@@ -21,6 +21,7 @@ object post:
 //                   dateCreated: Option[LocalDateTime] = LocalDateTime.now,
 //                   dateUpdated: LocalDateTime = LocalDateTime.now,
                    accountId: UUID = UUID.randomUUID,
+                   accountUsername:String,
                    title: String,
                    body: String
                  )
@@ -29,12 +30,14 @@ object post:
                          dateCreated: String,
                          dateUpdated: String,
                          accountId: String,
+                         accountUsername:String,
                          title: String,
                          body: String,
                          balance: Long
                          )
   case class SendPostFrontEnd(
                                accountId: String,
+                               accountUsername:String,
                                title: String,
                                body: String
                              )
@@ -44,6 +47,7 @@ object post:
                       dateCreated: LocalDateTime = LocalDateTime.now,
                       dateUpdated: LocalDateTime = LocalDateTime.now,
                       accountId: UUID = UUID.randomUUID,
+                      accountUsername: String = "",
                       title: String = "",
                       body: String = "" ,
                       balance: Long = 0,
@@ -56,35 +60,35 @@ object post:
                               newBody: String
                               )
 
-  object Post:
+//  object Post:
 
-    val uuidvalid = UUID.fromString("d9ba2946-a4a3-4acf-9685-aed117c1b213")
-    val postid = UUID.fromString("4a6df968-50c4-4eb2-875f-87f22d734a06")
+//    val uuidvalid = UUID.fromString("d9ba2946-a4a3-4acf-9685-aed117c1b213")
+//    val postid = UUID.fromString("4a6df968-50c4-4eb2-875f-87f22d734a06")
+//
+//    val insertDummy =
+//      Post(
+//        accountId = uuidvalid,
+//        title = "&&&&",
+//        body = "****"
+//      )
 
-    val insertDummy =
-      Post(
-        accountId = uuidvalid,
-        title = "&&&&",
-        body = "****"
-      )
-
-    val dummyDTO = fromPostToDTO(insertDummy, postid)
-
-    def fromPostToDTO(post: Post, postId: UUID): PostDTO =
-      PostDTO(
-        id = postId,
-        //dateCreated = post.dateCreated,
-        //dateUpdated = post.dateUpdated,
-        accountId = post.accountId,
-        title = post.title,
-        body = post.body
-      )
-
-    def fromDTOtoPost(postDTO:PostDTO): Post =
-      Post(
-        //dateCreated=postDTO.dateCreated,
-        //dateUpdated=postDTO.dateUpdated,
-        accountId=postDTO.accountId,
-        title=postDTO.title,
-        body=postDTO.body
-      )
+//    val dummyDTO = fromPostToDTO(insertDummy, postid)
+//
+//    def fromPostToDTO(post: Post, postId: UUID): PostDTO =
+//      PostDTO(
+//        id = postId,
+//        //dateCreated = post.dateCreated,
+//        //dateUpdated = post.dateUpdated,
+//        accountId = post.accountId,
+//        title = post.title,
+//        body = post.body
+//      )
+//
+//    def fromDTOtoPost(postDTO:PostDTO): Post =
+//      Post(
+//        //dateCreated=postDTO.dateCreated,
+//        //dateUpdated=postDTO.dateUpdated,
+//        accountId=postDTO.accountId,
+//        title=postDTO.title,
+//        body=postDTO.body
+//      )

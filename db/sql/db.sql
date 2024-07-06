@@ -13,6 +13,7 @@ create table accounts(
 create table posts(
     post_id uuid primary key NOT NULL DEFAULT gen_random_uuid (),
     account_id uuid  NOT NULL REFERENCES accounts(account_id),
+    account_username character varying(25),
     post_date_created timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     post_date_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     post_title character varying(100),
@@ -23,6 +24,7 @@ create table posts(
 create table replies(
     reply_id uuid primary key NOT NULL DEFAULT gen_random_uuid (),
     account_id uuid NOT NULL REFERENCES accounts(account_id),
+    account_username character varying(25),
     post_id uuid NOT NULL REFERENCES posts(post_id) ON DELETE CASCADE,
     reply_parent_id uuid REFERENCES replies(reply_id) ON DELETE CASCADE,
     reply_date_created timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
