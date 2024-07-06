@@ -94,7 +94,7 @@ class VotesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends Vo
       }
 
     replyId match
-      case Some(rid) => selectQuery(accountId, postId, s"reply_id = $rid AND")
+      case Some(rid) => selectQuery(accountId, postId, s"reply_id = '$rid' AND")
       case None      => selectQuery(accountId, postId, s"")
 
   override def delete(id: UUID): F[Int] =

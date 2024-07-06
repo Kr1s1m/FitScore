@@ -362,7 +362,7 @@ body {
    top: 50%;
    left: 50%;
    transform: translate(-50%, -50%) rotateY(90deg);
-   width: 310px;
+   width: 700px;
    padding: 20px;
    background: #fff;
    border-radius: 50px;
@@ -370,6 +370,8 @@ body {
    display: none;
    opacity: 0;
    transition: transform 0.5s, opacity 0.5s;
+   max-height: 700px;
+   overflow-y: auto;
 
  }
 

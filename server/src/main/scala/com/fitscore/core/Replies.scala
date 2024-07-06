@@ -25,6 +25,7 @@ import java.time.LocalDateTime
 trait Replies[F[_]]: // "algebra"
   def create(reply: Reply): F[UUID]
   def getById(id: UUID): F[Option[ReplyDTO]]
+  def getByPostId(id: UUID): F[List[ReplyDTO]]
   def all: F[List[ReplyDTO]]
   def getReplyKarmaByAccountId(accountId: UUID): F[Long]
   def updateVoteBalance(id: UUID, voteType: VoteType, balanceChange: Int): F[Int]
@@ -62,7 +63,8 @@ class RepliesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends 
           reply_parent_id,
           reply_date_created,
           reply_date_updated,
-          reply_body
+          reply_body,
+          reply_vote_balance
         FROM replies
         WHERE reply_id=$id
     """
@@ -74,6 +76,26 @@ class RepliesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends 
       case _ => println(s"[Internal Error] getById: Not found id in replies : $id"); None
     }
 
+  override def getByPostId(id: UUID): F[List[ReplyDTO]] =
+    sql"""
+          SELECT
+            reply_id,
+            account_id,
+            account_username,
+            post_id,
+            reply_parent_id,
+            reply_date_created,
+            reply_date_updated,
+            reply_body,
+            reply_vote_balance
+          FROM replies
+          WHERE post_id = $id
+      """
+      .query[ReplyDTO]
+      .stream
+      .transact(transactor)
+      .compile
+      .toList
   override def all: F[List[ReplyDTO]] =
     sql"""
         SELECT
@@ -84,7 +106,8 @@ class RepliesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends 
           reply_parent_id,
           reply_date_created,
           reply_date_updated,
-          reply_body
+          reply_body,
+          reply_vote_balance
         FROM replies
     """
       .query[ReplyDTO]
@@ -108,7 +131,7 @@ class RepliesLive[F[_]: Concurrent] private (transactor: Transactor[F]) extends 
     def updateQuery(voteMath: String): F[Int] =
       sql"""
           UPDATE replies
-          SET reply_vote_balance = reply_vote_balance ${Fragment.const(voteMath)},
+          SET reply_vote_balance = reply_vote_balance ${Fragment.const(voteMath)}
           WHERE reply_id = $id
         """
         .update

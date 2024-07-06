@@ -69,9 +69,9 @@ class VotesRoutes[F[_]: Concurrent] private (votes: Votes[F], posts: Posts[F], r
                   case 0 => NotFound(s"Post balance update failed: Not found post id $replyId")
                   case i => Ok(s"$i entries modified from replies")
                 }
-                case None => InternalServerError("Something went very wrong with your vote")
+                case None => InternalServerError("Something went very wrong with your vote1")
               }
-          case None => InternalServerError("Something went very wrong with your vote")
+          case None => InternalServerError("Something went very wrong with your vote2")
         }
       )
   }
