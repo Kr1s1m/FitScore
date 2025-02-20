@@ -1,7 +1,3 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/KrgnJiER)
-краен срок: 05.07.2024
----
-
 # FitScore (Leaderboard+Forum)
 
 The idea of the project is to develop a web-based fitness self-improvement application. FitScore is designed to help users achieve their fitness goals through structured self-improvement plans, competitive leaderboards, and a supportive community forum. The system will contain information (measurements and dimensions) about real life individuals. The system will allow registered users/admins to post on the forum board and enter the leaderboards. Users and admins will also be able to upvote and downvote posts and replies which will generate account karma. Additionally, user accounts can get verified by an admin. 
